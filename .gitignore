@@ -1,0 +1,11 @@
+credential.env
+conversation.json
+*.pyc
+test.py
+venv/*
+test2.py
+avvio.py
+test.txt
+music_pid.txt
+playlist.m3u
+vlc_pid.txt

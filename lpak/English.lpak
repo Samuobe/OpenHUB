@@ -1,0 +1,56 @@
+#Labels
+Listening|Listening
+I didn't catch that|I didn't catch that
+Could you repeat it?|Could you repeat it?
+I'm thinking|I'm thinking
+Answer provided|Answer provided
+Waiting for orders|Waiting for orders
+Artist|Artist
+Loading|Loading
+Title|Title
+Album|Album
+Nothing is playing|Nothing is playing
+Loading calendar|Loading calendar
+Calendar|Calendar
+All day|All day
+Welcome|Welcome
+Initialization|Initialization
+Say "Hey Jarvis"|Say "Hey Jarvis"
+Terminated|Terminated
+Completed|Completed
+Home|Home
+Required|Required
+Profile|Profile
+Security|Security
+Long-term tokens|Long-term tokens
+Bottom left|Bottom left
+Than click|Than click
+Configuration saved!|Configuration saved!
+
+#Buttons
+Stop and return to the home page|Stop and return to the home page
+Close and continue|Close and continue
+Start|Start
+Save configuration|Save configuration
+
+
+
+#Config mode
+To fill in the missing fields, log in via your browser|To fill in the missing fields, log in via your browser
+Pending completion from the webpage|Pending completion from the webpage
+Configuration completed successfully|Configuration completed successfully
+All data has been saved|All data has been saved
+Some settings are missing|Some settings are missing
+Let's start the web-based configuration|Let's start the web-based configuration
+Optional, leave blank to skip|Optional, leave blank to skip
+Home Assistant Token Guide|Home Assistant Token Guide
+Open your Home Assistant in your browser|Open your Home Assistant in your browser
+Click on your|Click on your
+Go to the page|Go to the page
+Scroll to the bottom of the section|Scroll to the bottom of the section
+Create token|Create token
+Copy the very long token and paste it below!|Copy the very long token and paste it below!
+You can close this page; the device is booting up.|You can close this page; the device is booting up.
+
+#Titles
+Setup OpenHomeHUB|Setup OpenHomeHUB

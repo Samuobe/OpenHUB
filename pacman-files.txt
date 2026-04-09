@@ -1,0 +1,2 @@
+sudo pacman -S base-devel alsa-lib portaudio espeak-ng ollama vlc
+sudo pacman -S xcb-util-cursor playerctl noto-fonts-emoji

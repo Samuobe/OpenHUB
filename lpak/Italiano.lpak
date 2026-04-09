@@ -1,0 +1,56 @@
+#Labels
+Listening|Ascolto
+I didn't catch that|Non ho capito 
+Could you repeat it?|Puoi ripetere?
+I'm thinking|Sto pensando
+Answer provided|Risposta data
+Waiting for orders|In attesa di comandi
+Artist|Artista
+Loading|Caricamento
+Title|Titolo
+Album|Album
+Nothing is playing|Nulla in riproduzione
+Loading calendar|Caricamento calendario
+Calendar|Calendario
+All day|Tutto il giorno
+Welcome|Benvenuto
+Initialization|Inizializzaione
+Say "Hey Jarvis"|Di "Hey Jarvis"
+Terminated|Finito
+Completed|Completato
+Home|Home
+Required|Obbligatorio
+Profile|Profilo
+Security|Sicurezza
+Long-term tokens|Token a lunga vita
+Bottom left|In basso a sinistra
+Than click|Quindi clicca
+Configuration saved!|Configurazione salvata!
+
+#Buttons
+Stop and return to the home page|Ferma e torna alla home
+Close and continue|Chiudi e continua
+Start|Inizia
+Save configuration|Salva configurazione
+
+
+
+#Config mode
+To fill in the missing fields, log in via your browser|Per compilare i campi mancanti entra nel seguente sito
+Pending completion from the webpage|In attesa del completamento della configurazione
+Configuration completed successfully|Configurazione salvata con successo
+All data has been saved|Tutti i dati son stati salvati
+Some settings are missing|Alcune impostazioni sono mancanti
+Let's start the web-based configuration|Iniziamo la configrazione via web
+Optional, leave blank to skip|Facoltativo, lascia bianco per saltare
+Home Assistant Token Guide|Home Assistant Guida al token
+Open your Home Assistant in your browser|Apri la tua istanza di Home Assistant nel browser
+Click on your|Clicca sul tuo
+Go to the page|Vai alla pagina
+Scroll to the bottom of the section|Scorri al fondo della sezione
+Create token|Crea token
+Copy the very long token and paste it below!|Copia il token e incollalo qui sotto!
+You can close this page, the device is booting up.|Puoi chiudere la pagina, il dispositivo si sta avviando.
+
+#Titles
+Setup OpenHomeHUB|Configazione OpenHomeHUB
