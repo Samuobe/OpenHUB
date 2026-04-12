@@ -8,10 +8,17 @@ import functions.lpak as lpak
 import configparser
 import functions.get_language_code as get_language_code
 
+def test_mode_enable():    
+    return os.path.isfile("test.txt")
+
+if test_mode_enable():
+    data_path="/var/lib/open-hub/"
+else:
+    data_path = ""
 
 #load config
 config =configparser.ConfigParser()
-config.read("config.conf")
+config.read(f"{data_path}config.conf")
 language = config.get("User data", "Language")
 language_code = get_language_code.get(language)
 
@@ -24,8 +31,7 @@ def setting_status(a):
     else:
         return False
 
-def test_mode_enable():    
-    return os.path.isfile("test.txt")
+
 
 musicbrainzngs.set_useragent("OpenHUB", "0.1", "https://github.com/Samuobe/OpenHUB")
 
@@ -46,8 +52,8 @@ last_title = ""
 current_cover_thread = None
 
 
-if os.path.isfile("conversation.json"):
-    os.remove("conversation.json")
+if os.path.isfile(f"{data_path}conversation.json"):
+    os.remove(f"{data_path}conversation.json")
 
 
 
@@ -568,6 +574,8 @@ from other_windows.app_store import open_store_page
 import subprocess
 from functions.mpv_status import is_mpv_running
 import alsaaudio
+import importlib
+import json
 
 mixer = alsaaudio.Mixer()
 
@@ -725,14 +733,77 @@ def create_calendar_widget():
     calendar_container.setLayout(calendar_layout)
 create_calendar_widget()
 
+def control_coordinate():   
+    global line, column
+    if column == 1:
+        column = 0
+        line = line+1
+    else:
+        column = 1
 
+line = 0
+column = 0
 #Layout tot
 data_widget = QGridLayout()
-data_widget.addWidget(label_time, 0, 0)      
+data_widget.addWidget(label_time, line, column) 
+control_coordinate()
 if setting_status(music_widget_status):
-    data_widget.addWidget(music_container, 0, 1) 
+    data_widget.addWidget(music_container, line, column) 
+    control_coordinate()
 if setting_status(calendar_widget_status):
-    data_widget.addWidget(calendar_container, 1, 0)
+    data_widget.addWidget(calendar_container, line, column)
+    control_coordinate()
+
+
+def carica_widget_esterni(griglia_layout, starting_line=1, starting_column=1):
+    ui_path = "apps/UI"
+    print("1. Starting plugin loading...")    
+    if not os.path.exists(ui_path):
+        print(f"Directory {ui_path} not found!")
+        return
+
+    current_line = starting_line
+    current_column = starting_column
+    for folder_name in os.listdir(ui_path):
+        plugin_path = os.path.join(ui_path, folder_name)
+        print(f"2. Folder found: {folder_name}")        
+        if os.path.isdir(plugin_path) and os.path.exists(os.path.join(plugin_path, "manifest.json")):
+            try:
+                print(f"3. Reding manifest {folder_name}")
+                with open(os.path.join(plugin_path, "manifest.json"), "r") as f:
+                    manifest = json.load(f)                
+                if manifest.get("attivo", True):
+                    file_python_name = manifest['main'].replace(".py", "")
+                    class_name = manifest['main_class']
+                    
+                    module_name = f"apps.UI.{folder_name}.{file_python_name}"
+                    print(f"4. Importing: {module_name}")
+                    loaded_module = importlib.import_module(module_name)
+                    
+                    print(f"5.module_imported {class_name}")
+                    ClasseWidget = getattr(loaded_module, class_name)
+                    plugin_istance = ClasseWidget()
+                    
+                    print("6. Calling on_enable e adding at the grill")
+                    plugin_istance.on_enable()
+                    widget_ui = plugin_istance.get_widget()
+                    
+                    griglia_layout.addWidget(widget_ui, current_line, current_column)
+                    print(f"7. Widget {folder_name} loaded!")
+                    
+                    current_column += 1
+                    if current_column > 1:
+                        current_column = 0
+                        current_line += 1
+                        
+            except Exception as e:
+                print(f"FATAL ERROR in widget: {folder_name}: {e}")
+        control_coordinate()
+    print("8. Widget loaded!")
+
+carica_widget_esterni(data_widget, starting_line=line, starting_column=column)
+
+
 
 
 main_layout.addLayout(data_widget)

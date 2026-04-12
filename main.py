@@ -5,9 +5,19 @@ import configparser
 from sys import argv
 from config_process import run_setup
 
+def test_mode_enable():    
+    return os.path.isfile("test.txt")
+
+if test_mode_enable():
+    data_path="/var/lib/open-hub/"
+else:
+    data_path = ""
+
+
+
 def check_configuration():
     base_file = "credential_base.env"
-    user_file = "credential.env"
+    user_file = f"{data_path}credential.env"
 
     if not os.path.exists(user_file):
         return False

@@ -1,0 +1,48 @@
+# Maintainer: Samuobe <samuobe@ik.me>
+
+pkgname=open-hub-git
+pkgver=0.0.1
+pkgrel=1
+pkgdesc="An app to convert your device into an HUB for manage your digital life"
+arch=('any')
+url="https://github.com/Samuobe/OpenHUB"
+license=('GPL3')
+depends=('python' 'python-pyqt6')
+makedepends=('git' 'python-setuptools')
+provides=('open-hub')
+conflicts=('open-hub')
+source=("git+$url.git")
+md5sums=('SKIP')
+
+pkgver() {
+    cd "$srcdir/OpenHUB"
+    git describe --tags --always | sed 's/^v//;s/-/./g'
+}
+
+package() {
+    # Copia tutto il progetto in /usr/share/open-hub
+    install -d "$pkgdir/usr/share/open-hub"
+    cp -r "$srcdir/OpenHUB/"* "$pkgdir/usr/share/open-hub/"
+
+    # Crea la cartella dati globale con permessi corretti
+    install -dm1777 "$pkgdir/var/lib/open-hub"
+    
+    # Crea un wrapper in /usr/bin per lanciare l'applicazione
+    install -Dm755 /dev/stdin "$pkgdir/usr/bin/open-hub" <<EOF
+#!/bin/sh
+exec python3 /usr/share/open-hub/main.py "\$@"
+EOF
+
+    # Icona (assicurati che il file si chiami icon.png nella root del tuo repo OpenHUB)
+    if [ -f "$srcdir/OpenHUB/icon.png" ]; then
+        install -Dm644 "$srcdir/OpenHUB/icon.png" "$pkgdir/usr/share/pixmaps/open-hub.png"
+    fi
+
+    # File .desktop (assicurati che esista un file open-hub.desktop nel tuo repo, altrimenti dovrai generarlo)
+    if [ -f "$srcdir/OpenHUB/open-hub.desktop" ]; then
+        install -Dm644 "$srcdir/OpenHUB/open-hub.desktop" "$pkgdir/usr/share/applications/open-hub.desktop"
+    fi
+
+    # File flag per riconoscere l'installazione via AUR (opzionale)
+    install -Dm644 /dev/null "$pkgdir/usr/share/open-hub/AUR"
+}

@@ -69,6 +69,8 @@ PyQt6==6.11.0
 PyQt6-Qt6==6.11.0
 PyQt6_sip==13.11.1
 python-dateutil==2.9.0.post0
+python-vlc==3.0.21203
+PyVLC==1.0.1
 PyYAML==6.0.3
 qh3==1.7.1
 recurring-ical-events==3.8.1

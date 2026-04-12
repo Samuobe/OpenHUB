@@ -14,12 +14,17 @@ import functions.lpak as lpak
 def test_mode_enable():    
     return os.path.isfile("test.txt")
 
+if test_mode_enable():
+    data_path="/var/lib/open-hub/"
+else:
+    data_path = ""
+
 config =configparser.ConfigParser()
 config.read("config.conf")
 language = config.get("User data", "Language")
 
 
-config_file = "credential.env"
+config_file = f"{data_path}credential.env"
 config = configparser.ConfigParser()
 config.optionxform = str 
 

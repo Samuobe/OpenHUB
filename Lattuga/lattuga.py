@@ -12,8 +12,18 @@ from openwakeword.model import Model
 import configparser
 import functions.get_language_code as get_language_code
 
+
+def test_mode_enable():    
+    return os.path.isfile("test.txt")
+
+if test_mode_enable():
+    data_path="/var/lib/open-hub/"
+else:
+    data_path = ""
+
+
 config =configparser.ConfigParser()
-config.read("config.conf")
+config.read(f"{data_path}config.conf")
 language = config.get("User data", "Language")
 language_code = get_language_code.get(language)
 
@@ -31,8 +41,8 @@ oww_model = Model()
 with open("Lattuga/rules.txt", "r") as f:
     AI_RULES = f.read()
 
-if os.path.exists("conversation.json"):
-    with open("conversation.json", "r") as f:
+if os.path.exists(f"{data_path}conversation.json"):
+    with open(f"{data_path}conversation.json", "r") as f:
         messages = json.load(f)
 else:
     messages = [
@@ -53,7 +63,7 @@ else:
     ]
 
 def save_messages():
-    with open("conversation.json", "w") as f:
+    with open(f"{data_path}conversation.json", "w") as f:
         json.dump(messages, f, indent=2)
 
 def Lattuga(prompt):
