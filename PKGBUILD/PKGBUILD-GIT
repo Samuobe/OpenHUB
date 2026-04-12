@@ -21,7 +21,7 @@ pkgver() {
 
 package() {
     # Copia tutto il progetto in /usr/share/open-hub
-    install -d "$pkgdir/usr/share/open-hub"
+    install -dm1777 "$pkgdir/usr/share/open-hub"
     cp -r "$srcdir/OpenHUB/"* "$pkgdir/usr/share/open-hub/"
 
     # Crea la cartella dati globale con permessi corretti

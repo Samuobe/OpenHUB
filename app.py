@@ -11,10 +11,7 @@ import functions.get_language_code as get_language_code
 def test_mode_enable():    
     return os.path.isfile("test.txt")
 
-if test_mode_enable():
-    data_path="/var/lib/open-hub/"
-else:
-    data_path = ""
+data_path = ""
 
 #load config
 config =configparser.ConfigParser()

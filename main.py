@@ -5,13 +5,15 @@ import configparser
 from sys import argv
 from config_process import run_setup
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
+
+
 def test_mode_enable():    
     return os.path.isfile("test.txt")
 
-if test_mode_enable():
-    data_path="/var/lib/open-hub/"
-else:
-    data_path = ""
+data_path = ""
 
 
 
