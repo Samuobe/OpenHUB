@@ -8,14 +8,10 @@ from config_process import run_setup
 script_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_dir)
 
-
-
 def test_mode_enable():    
     return os.path.isfile("test.txt")
 
 data_path = ""
-
-
 
 def check_configuration():
     base_file = "credential_base.env"
@@ -46,18 +42,18 @@ def check_configuration():
 
     return True
 
-
 try:
-    command=argv[1]    
-except:
-    command=None
+    command = argv[1]    
+except IndexError:
+    command = None
 
 
 if command == "start":
     try:
         specific = argv[2]
-    except:
+    except IndexError:
         specific = None
+        
     if specific == "station":
         if not check_configuration():
             run_setup()
@@ -67,9 +63,11 @@ if command == "start":
         processi = []
 
         for file in files:
-            p = subprocess.Popen([sys.executable, file])
+            file_path = os.path.join(script_dir, file)
+            # Aggiunto cwd=script_dir per forzare la directory di lavoro del sottoprocesso
+            p = subprocess.Popen([sys.executable, file_path], cwd=script_dir)
             processi.append(p)
-            print(f"Started {file} whit PID: {p.pid}")
+            print(f"Started {file} with PID: {p.pid} in {script_dir}")
 
         try:
             for p in processi:
@@ -78,15 +76,17 @@ if command == "start":
             print("\nExiting...")
             for p in processi:
                 p.terminate() 
+                
     elif specific == "daemon":
         files = ["back_process/music.py", "back_process/clock.py", "back_process/api.py"]
 
         processi = []
 
         for file in files:
-            p = subprocess.Popen([sys.executable, file])
+            file_path = os.path.join(script_dir, file)
+            p = subprocess.Popen([sys.executable, file_path], cwd=script_dir)
             processi.append(p)
-            print(f"Started {file} whit PID: {p.pid}")
+            print(f"Started {file} with PID: {p.pid} in {script_dir}")
 
         try:
             for p in processi:
@@ -95,9 +95,10 @@ if command == "start":
             print("\nExiting...")
             for p in processi:
                 p.terminate() 
+                
     elif specific == "help":
         print("main.py start _____")
-        print("                |-> station\tStart the full indipendent station whit GUI")
+        print("                |-> station\tStart the full independent station with GUI")
         print("                |-> daemon\tStart all the system except GUI function")
         print("                |-> help\tShow this guide ")
     else:

@@ -12,6 +12,7 @@ from openwakeword.model import Model
 import configparser
 import functions.get_language_code as get_language_code
 
+data_path=""
 
 def test_mode_enable():    
     return os.path.isfile("test.txt")
