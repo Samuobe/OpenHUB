@@ -1,12 +1,10 @@
 #!/bin/bash
-#!/bin/bash
 
 
 echo "Welcome to the OpenHUB installation program!"
 echo "What do you want to do?"
 echo "1) Install/Update OpenHUB"
 echo "2) Uninstall OpenHUB"
-read -p "Select an option [1/2/5]: " action
 read -p "Select an option [1/2/5]: " action
 
 if [[ "$action" == "1" ]]; then
