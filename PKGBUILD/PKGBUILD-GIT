@@ -30,6 +30,7 @@ package() {
     # Crea un wrapper in /usr/bin per lanciare l'applicazione
     install -Dm755 /dev/stdin "$pkgdir/usr/bin/open-hub" <<EOF
 #!/bin/sh
+cd /usr/share/open-hub
 exec python3 /usr/share/open-hub/main.py "\$@"
 EOF
 

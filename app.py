@@ -46,7 +46,7 @@ style_widget = """
 #global gabbage
 
 last_title = ""
-current_cover_thread = None
+active_threads = []
 
 
 if os.path.isfile(f"{data_path}conversation.json"):
@@ -289,6 +289,11 @@ current_popup = None
 
 def ask_ai():
     global voice_worker
+    if 'voice_worker' in globals() and voice_worker is not None and voice_worker.isRunning():
+        print("DEBUG: voice_worker is already running!")
+        return
+
+
     tts.stop()
     if current_popup:
         current_popup.close()
@@ -426,9 +431,17 @@ def update_music():
                         text-align: center;
                     """) 
 
-                current_cover_thread = CoverWorker(artist, album, title)
-                current_cover_thread.finished.connect(set_cover_or_emoji)
-                current_cover_thread.start()
+         
+                new_cover_thread = CoverWorker(artist, album, title)
+                active_threads.append(new_cover_thread)
+
+                def cleanup_and_set(result, thread_ref=new_cover_thread):
+                    set_cover_or_emoji(result)
+                    if thread_ref in active_threads:
+                        active_threads.remove(thread_ref)
+                        
+                new_cover_thread.finished.connect(cleanup_and_set)
+                new_cover_thread.start()
                 
             if music_status == "Playing":
                 music_play_button.setText("⏸️")
