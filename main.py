@@ -3,12 +3,19 @@ import subprocess
 import sys
 import configparser
 from sys import argv
+
+# Set the base directory to where main.py is located so that all
+# relative file paths work correctly regardless of the working directory
+# when the script is invoked (e.g. via /usr/bin/open-hub).
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
 from config_process import run_setup
 
 def test_mode_enable():    
     return os.path.isfile("test.txt")
 
-if test_mode_enable():
+if test_mode_enable() or os.path.isfile("AUR"):
     data_path="/var/lib/open-hub/"
 else:
     data_path = ""
