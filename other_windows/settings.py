@@ -207,7 +207,10 @@ def open_settings_page():
         plugin_label=QLabel(name)
         plugin_button = QPushButton()
         plugin_button.pressed.connect(lambda: change_custom_widget_status(custom_widgets_path+"/"+plugin, status, plugin_button))
-        with open(f"{custom_widgets_path}/{plugin}/status.conf") as f:
+        if not os.path.isfile(f"{custom_widgets_path}/{plugin}/status.conf"):
+            with open(f"{custom_widgets_path}/{plugin}/status.conf", "w") as f:
+                f.write("disable")
+        with open(f"{custom_widgets_path}/{plugin}/status.conf", "r") as f:
             status = f.readline().strip().lower()
         if setting_status(status):
             plugin_button.setText(lpak.get("Disable", language))

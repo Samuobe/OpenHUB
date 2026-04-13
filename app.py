@@ -793,7 +793,7 @@ def load_external_widgets(griglia_layout, starting_line=1, starting_column=1):
 
             if not os.path.isfile(status_file):
                 with open(status_file, "w") as f:
-                    f.write("enable")
+                    f.write("disable")
 
             with open(status_file, "r") as f:
                 status = f.readline().strip().lower()
