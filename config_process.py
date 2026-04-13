@@ -22,8 +22,8 @@ language = config.get("User data", "Language")
 
 
 config_file = f"{data_path}credential.env"
-config = configparser.ConfigParser()
 config.optionxform = str 
+config = configparser.ConfigParser()
 
 app_state = {
     "sections_to_configure": []

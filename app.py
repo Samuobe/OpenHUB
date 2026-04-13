@@ -15,6 +15,7 @@ data_path = ""
 
 #load config
 config =configparser.ConfigParser()
+config.optionxform = str
 config.read(f"{data_path}config.conf")
 language = config.get("User data", "Language")
 language_code = get_language_code.get(language)
@@ -586,6 +587,8 @@ from functions.mpv_status import is_mpv_running
 import alsaaudio
 import importlib
 import json
+from other_windows.settings import open_settings_page
+
 
 mixer = alsaaudio.Mixer()
 
@@ -613,6 +616,7 @@ microphone_icon.pressed.connect(ask_ai)
 status_label = QLabel(text=f"{lpak.get("Welcome", language)}!")
 
 settings_button = QPushButton(text="⚙️")
+settings_button.pressed.connect(open_settings_page)
 
 store_button = QPushButton(text="🏪")
 store_button.pressed.connect(open_store_page)
@@ -765,53 +769,80 @@ if setting_status(calendar_widget_status):
     control_coordinate()
 
 
-def carica_widget_esterni(griglia_layout, starting_line=1, starting_column=1):
+def load_external_widgets(griglia_layout, starting_line=1, starting_column=1):
     ui_path = "apps/UI"
     print("1. Starting plugin loading...")    
+
     if not os.path.exists(ui_path):
         print(f"Directory {ui_path} not found!")
         return
 
     current_line = starting_line
     current_column = starting_column
+
     for folder_name in os.listdir(ui_path):
         plugin_path = os.path.join(ui_path, folder_name)
         print(f"2. Folder found: {folder_name}")        
-        if os.path.isdir(plugin_path) and os.path.exists(os.path.join(plugin_path, "manifest.json")):
-            try:
-                print(f"3. Reding manifest {folder_name}")
-                with open(os.path.join(plugin_path, "manifest.json"), "r") as f:
-                    manifest = json.load(f)                
-                if manifest.get("attivo", True):
-                    file_python_name = manifest['main'].replace(".py", "")
-                    class_name = manifest['main_class']
-                    
-                    module_name = f"apps.UI.{folder_name}.{file_python_name}"
-                    print(f"4. Importing: {module_name}")
-                    loaded_module = importlib.import_module(module_name)
-                    
-                    print(f"5.module_imported {class_name}")
-                    ClasseWidget = getattr(loaded_module, class_name)
-                    plugin_istance = ClasseWidget()
-                    
-                    print("6. Calling on_enable e adding at the grill")
-                    plugin_istance.on_enable()
-                    widget_ui = plugin_istance.get_widget()
-                    
-                    griglia_layout.addWidget(widget_ui, current_line, current_column)
-                    print(f"7. Widget {folder_name} loaded!")
-                    
-                    current_column += 1
-                    if current_column > 1:
-                        current_column = 0
-                        current_line += 1
-                        
-            except Exception as e:
-                print(f"FATAL ERROR in widget: {folder_name}: {e}")
-        control_coordinate()
-    print("8. Widget loaded!")
 
-carica_widget_esterni(data_widget, starting_line=line, starting_column=column)
+        if not (os.path.isdir(plugin_path) and os.path.exists(os.path.join(plugin_path, "manifest.json"))):
+            continue
+
+        try:
+            # --- STATUS FILE ---
+            status_file = os.path.join(plugin_path, "status.conf")
+
+            if not os.path.isfile(status_file):
+                with open(status_file, "w") as f:
+                    f.write("enable")
+
+            with open(status_file, "r") as f:
+                status = f.readline().strip().lower()
+
+            if status != "enable":
+                print(f"{folder_name} disabled")
+                continue
+
+            # --- MANIFEST ---
+            print(f"3. Reading manifest {folder_name}")
+            with open(os.path.join(plugin_path, "manifest.json"), "r") as f:
+                manifest = json.load(f)
+
+            if not manifest.get("attivo", True):
+                continue
+
+            # --- IMPORT ---
+            file_python_name = manifest['main'].replace(".py", "")
+            class_name = manifest['main_class']
+            module_name = f"apps.UI.{folder_name}.{file_python_name}"
+
+            print(f"4. Importing: {module_name}")
+            loaded_module = importlib.import_module(module_name)
+
+            ClasseWidget = getattr(loaded_module, class_name)
+            plugin_instance = ClasseWidget()
+
+            # --- INIT ---
+            print("6. Enabling widget")
+            plugin_instance.on_enable()
+            widget_ui = plugin_instance.get_widget()
+
+            # --- ADD ---
+            griglia_layout.addWidget(widget_ui, current_line, current_column)
+            print(f"7. Widget {folder_name} loaded!")
+
+            # --- GRID ---
+            current_column += 1
+            if current_column > 1:
+                current_column = 0
+                current_line += 1
+
+        except Exception as e:
+            print(f"FATAL ERROR in widget: {folder_name}: {e}")
+            import traceback
+            traceback.print_exc()
+
+    print("8. Widget loaded!")
+load_external_widgets(data_widget, starting_line=line, starting_column=column)
 
 
 

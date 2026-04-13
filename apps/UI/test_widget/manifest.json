@@ -1,5 +1,5 @@
 {
-  "nome": "Widget di prova",
+  "name": "Widget di prova",
   "main": "test_widget",
   "main_class": "TestWidget"
 }

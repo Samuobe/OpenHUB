@@ -1,0 +1,236 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox, QGridLayout, QFrame
+from PyQt6.QtCore import Qt
+import configparser
+import glob
+import functions.lpak as lpak
+import json
+import functions.notify as notify
+
+
+settings_window = None 
+config = None
+
+def open_settings_page():
+    data_path = ""
+    global settings_window, config
+    global language, music_widget_status, calendar_widget_status
+
+    avaible_languages_temp = glob.glob(f"{data_path}lpak/*.lpak")
+    avaible_languages = []
+    for language in avaible_languages_temp:
+        avaible_languages.append(language.split("/")[-1].split(".")[0])
+    avaible_languages.sort(key=str.lower)
+
+        
+    def setting_status(a):
+        if a.strip()=="enable":
+            return True
+        else:
+            return False
+
+    config =configparser.ConfigParser()
+    config.optionxform = str
+    config.read(f"{data_path}config.conf")
+    language = config.get("User data", "Language")
+
+    music_widget_status = config.get("Widgets", "Music")
+    calendar_widget_status = config.get("Widgets", "Calendar")
+
+
+    def close_window():
+        settings_window.close()
+    
+    def write_settings():
+        global config
+        with open(f"{data_path}config.conf", "w") as configfile:
+            config.write(configfile)
+
+    if settings_window is not None:
+        settings_window.show()  
+        settings_window.raise_()
+        return settings_window
+
+    settings_window = QMainWindow()
+    settings_window.setWindowTitle(f"OpenHUB - {lpak.get("Settings", language)}")
+
+    central_widget = QWidget()
+    settings_window.setCentralWidget(central_widget)
+    main_layout = QVBoxLayout(central_widget)
+
+    # Up bar
+    up_bar_layout = QHBoxLayout()
+    status_label = QLabel(f"{lpak.get("Settings", language)}")
+    close_button = QPushButton("❌")
+
+    close_button.pressed.connect(close_window)
+
+    up_bar_layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignLeft)
+    up_bar_layout.addWidget(status_label)
+   
+    up_bar_layout.addStretch()
+
+    main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+    main_layout.setContentsMargins(0, 0, 0, 0)
+    main_layout.addLayout(up_bar_layout)
+
+    line = QFrame()
+    line.setFrameShape(QFrame.Shape.HLine)
+    line.setFrameShadow(QFrame.Shadow.Sunken)
+
+    # Contenuto centrale
+    label_title = QLabel(f"{lpak.get("Settings", language)}")
+    label_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    label_user_data=QLabel(f"{lpak.get("Interface options", language)}")
+    #languages
+    label_language=QLabel(lpak.get("Language", language))
+    menu_select_language = QComboBox()
+    menu_select_language.addItems(avaible_languages)
+    menu_select_language.setCurrentText(language)
+
+    #Widgets
+    label_widget_title = QLabel(lpak.get("Default widgets", language))
+    def change_music_widget_status():
+        global music_widget_status, config
+        if setting_status(music_widget_status):
+            val = "Disable"
+            button_setting_music.setText(lpak.get("Enable", language))
+        else:
+            val = "Enable"
+            button_setting_music.setText(lpak.get("Disable", language))
+        music_widget_status = val
+        config.set("Widgets", "Music", val)
+        write_settings()
+
+    label_music_widget = QLabel("Musica")
+    button_setting_music =QPushButton()
+    button_setting_music.pressed.connect(change_music_widget_status)
+    if setting_status(music_widget_status):
+        button_setting_music.setText(lpak.get("Disable", language))
+    else:
+        button_setting_music.setText(lpak.get("Enable", language))  
+    
+    def change_calendar_widget_status():
+        global calendar_widget_status, config
+        if setting_status(calendar_widget_status):
+            val = "Disable"
+            button_setting_calendar.setText(lpak.get("Enable", language))
+        else:
+            val = "Enable"
+            button_setting_calendar.setText(lpak.get("Disable", language))
+        calendar_widget_status = val
+        config.set("Widgets", "Calendar", val)
+        write_settings()
+
+    label_calendar_widget = QLabel(lpak.get("Calendar", language))
+    button_setting_calendar = QPushButton()
+    button_setting_calendar.pressed.connect(change_calendar_widget_status)
+
+    if setting_status(calendar_widget_status):
+        button_setting_calendar.setText(lpak.get("Disable", language))
+    else:
+        button_setting_calendar.setText(lpak.get("Enable", language))
+
+      
+    #Buttons
+    def change_language():
+        global config   
+        new_language = menu_select_language.currentText()
+        config.set("User data", "Language", new_language)
+        write_settings()
+        notify.system_notification(f"{lpak.get("New language", new_language)}: {new_language}", f"{lpak.get("Language updated", new_language)}. {lpak.get("Please reboot", new_language)}")
+
+    button_change_language = QPushButton(lpak.get("Apply language", language))
+    button_change_language.pressed.connect(change_language)
+
+    
+
+
+    data_widget = QGridLayout()
+    data_widget.addWidget(label_title, 0, 0, 1, 4)
+    data_widget.addWidget(label_user_data, 1, 0, 1, 2)
+    data_widget.addWidget(label_language, 2, 0, 1, 1)
+    data_widget.addWidget(menu_select_language, 2, 1,1,1)
+    data_widget.addWidget(button_change_language, 7, 0, 1, 2)
+    data_widget.addWidget(line, 3, 0, 1, 2)
+
+    data_widget.addWidget(label_widget_title, 4, 0, 1, 2)
+    data_widget.addWidget(label_music_widget, 5, 0, 1, 1)
+    data_widget.addWidget(button_setting_music, 5, 1, 1, 1)    
+    data_widget.addWidget(label_calendar_widget, 6, 0, 1, 1)
+    data_widget.addWidget(button_setting_calendar, 6, 1, 1, 1)
+    data_widget.addWidget(line, 7, 0, 1, 2)
+
+    
+
+    ########SX PART, CUSTOM THINGS
+    #Custom widget
+    label_title_custom_things=QLabel("Custom component")
+
+    label_title_custom_widgets=QLabel("Custom label")
+
+    def change_custom_widget_status(path, status, button):
+        if button.text() == lpak.get("Disable", language):
+            with open(path+"/status.conf", "w") as f:
+                f.write("disable")
+                button.setText(lpak.get("Enable", language))
+        else:
+            with open(path+"/status.conf", "w") as f:
+                f.write("enable")
+                button.setText(lpak.get("Disable", language))
+        
+
+
+    avaible_custom_widgets = []
+    custom_widgets_path = f"{data_path}apps/UI"
+    for folder in os.listdir(custom_widgets_path):
+        folder_path = os.path.join(custom_widgets_path, folder)
+        if os.path.isdir(folder_path):
+            avaible_custom_widgets.append(folder)
+    avaible_custom_widgets.sort(key=str.lower)
+    print(avaible_custom_widgets)
+
+    data_widget.addWidget(label_title_custom_things, 1, 3, 1, 2)
+    data_widget.addWidget(label_title_custom_widgets, 2, 3, 1, 1)
+    r = 3
+    for plugin in avaible_custom_widgets:
+        if plugin == "__init.py__" or plugin == "__pycache__":
+            continue
+        with open(f"{custom_widgets_path}/{plugin}/manifest.json", "r") as f:
+            data = json.load(f)
+
+        name = data["name"]
+
+        plugin_label=QLabel(name)
+        plugin_button = QPushButton()
+        plugin_button.pressed.connect(lambda: change_custom_widget_status(custom_widgets_path+"/"+plugin, status, plugin_button))
+        with open(f"{custom_widgets_path}/{plugin}/status.conf") as f:
+            status = f.readline().strip().lower()
+        if setting_status(status):
+            plugin_button.setText(lpak.get("Disable", language))
+        else:
+            plugin_button.setText(lpak.get("Enable", language))
+        
+        data_widget.addWidget(plugin_label, r, 3, 1, 1)
+        data_widget.addWidget(plugin_button, r, 4, 1, 1)
+        r = r+1
+
+
+
+
+
+    main_layout.addLayout(data_widget)
+
+    settings_window.showMaximized()
+    return settings_window
+
+if __name__ == "__main__":
+    import sys
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication(sys.argv)
+    open_settings_page()
+    sys.exit(app.exec())
+

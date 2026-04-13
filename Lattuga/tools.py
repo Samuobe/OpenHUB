@@ -21,6 +21,7 @@ mixer = alsaaudio.Mixer()
     
 #SET ENV
 config = configparser.ConfigParser()
+config.optionxform = str 
 config.read("credential.env")
 
 device_name = config.get("Device info", "device_name")

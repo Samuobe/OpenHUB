@@ -9,3 +9,5 @@ test.txt
 music_pid.txt
 playlist.m3u
 vlc_pid.txt
+*status.conf
+*clock.txt
