@@ -121,12 +121,19 @@ elif command == "daemon":
         os.system("systemctl --user start openhub.service")
     elif specific == "stop":
         os.system("systemctl --user stop openhub.service")
+    elif specific == "status":
+        os.system("systemctl --user status openhub.service")
+    elif specific == "restart":
+        os.system("systemctl --user restart openhub.service")
+
     elif specific == "help":
         print("open-hub autostart_____")
         print("                     |-> enable \tEnable OpenHUB at the login of this user")
         print("                     |-> disable \tDisable OpenHUB at the login of this user")
+        print("                     |-> status \See OpenHUB status in background")
         print("                     |-> start \tStart OpenHUB in background")
         print("                     |-> stop \tStop OpenHUB in background")
+        print("                     |-> restart \tRestart OpenHUB")
         print("                     |-> help\tShow this guide ")
     else:
         print('Error, invalid autostart arg, use "open-hub autostart help" to see a guide')
@@ -140,8 +147,8 @@ elif command == "help":
     print("          |-> start  ______ \tStart OpenHomeHUB (DON'T USE THIS IF YOU DON'T KNOW WHAT YOU ARE DOING!)")
     print("          |             |-> station/core")
     print("          |")
-    print("          |-> daemon ______\tEnable/Disable Autostart\tStart/Stop Program in background (USE THIS TO START OPNEHUB)")
-    print("          |             |-> enable/disable/start/stop")
+    print("          |-> daemon ______\tEnable/Disable Autostart\tStart/Stop/Restart Program in background (USE THIS TO START OPNEHUB)")
+    print("          |             |-> enable/disable/start/stop/restart")
     print("          |")
     print("          |-> help\tShow this guide ")
     print("")

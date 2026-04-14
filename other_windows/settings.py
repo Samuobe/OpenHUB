@@ -9,12 +9,14 @@ import functions.lpak as lpak
 import json
 import functions.notify as notify
 import config_process
+import shutil
 
 
 settings_window = None 
 config = None
 
 def open_settings_page():
+    shutil.copyfile("config.conf","config.conf.old")
     def test_mode_enable():    
         return os.path.isfile("test.txt")
     data_path = ""
@@ -43,7 +45,24 @@ def open_settings_page():
     calendar_widget_status = config.get("Widgets", "Calendar")
 
     def close_window():
+        try:
+            with open('config.conf', 'r') as f1:
+                new_config = f1.read()
+
+            with open('config.conf.old', 'r') as f2:
+                old_config = f2.read()
+            os.remove("config.conf.old")
+
+            if new_config != old_config:
+                os.system("systemctl --user restart openhub.service")  
+            else:
+                pass 
+
+        except Exception as e:
+            print("Error during confronting:", e)
+    
         settings_window.close()
+
     
     def write_settings():
         global config

@@ -564,7 +564,7 @@ splash.raise_()
 splash.activateWindow()
 
 splash.setFont(QFont("Ubuntu", 30, QFont.Weight.Bold))
-splash.showMessage(f"OpenHubHOME\n{lpak.get("Loading", language)}...", 
+splash.showMessage(f"OpenHUB\n{lpak.get("Loading", language)}...", 
                    Qt.AlignmentFlag.AlignCenter, 
                    Qt.GlobalColor.white)
 
@@ -660,7 +660,7 @@ def show_energy_popup():
     btn_close.pressed.connect(dialog.close)
     btn_restart_openhub
     btn_close_openhub.pressed.connect(lambda: os.system("systemctl --user stop openhub.service"))
-    btn_restart_openhub.pressed.connect(lambda: os.system("systemctl --user start openhub.service "))
+    btn_restart_openhub.pressed.connect(lambda: os.system("systemctl --user restart openhub.service "))
 
     layout.addWidget(btn_restart_openhub)
     layout.addWidget(btn_close_openhub)

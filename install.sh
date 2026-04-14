@@ -55,7 +55,6 @@ EOF
     echo "To start OpenHUB manually, run:"
     echo "  open-hub daemon start"
     echo
-    echo "NOTE: The service has NOT been started automatically."
 }
 
 
