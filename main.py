@@ -64,7 +64,6 @@ if command == "start":
 
         for file in files:
             file_path = os.path.join(script_dir, file)
-            # Aggiunto cwd=script_dir per forzare la directory di lavoro del sottoprocesso
             p = subprocess.Popen([sys.executable, file_path], cwd=script_dir)
             processi.append(p)
             print(f"Started {file} with PID: {p.pid} in {script_dir}")
@@ -77,7 +76,7 @@ if command == "start":
             for p in processi:
                 p.terminate() 
                 
-    elif specific == "daemon":
+    elif specific == "core":
         files = ["back_process/music.py", "back_process/clock.py", "back_process/api.py"]
 
         processi = []
@@ -97,19 +96,47 @@ if command == "start":
                 p.terminate() 
                 
     elif specific == "help":
-        print("main.py start _____")
+        print("open-hub start _____")
         print("                |-> station\tStart the full independent station with GUI")
-        print("                |-> daemon\tStart all the system except GUI function")
+        print("                |-> core\tStart all the system except GUI function")
         print("                |-> help\tShow this guide ")
     else:
         print('Error, invalid start arg, use "main.py start help" to see a guide')
 
+elif command == "daemon":
+    try:
+        specific = argv[2]
+    except IndexError:
+        specific = None
+    
+    if specific == "enable":
+        os.system("systemctl --user enable openhub.service")
+    elif specific == "disable":
+        os.system("systemctl --user disable openhub.service")
+    elif specific == "start":
+        os.system("systemctl --user start openhub.service")
+    elif specific == "stop":
+        os.system("systemctl --user stop openhub.service")
+    elif specific == "help":
+        print("open-hub autostart_____")
+        print("                     |-> enable \tEnable OpenHUB at the login of this user")
+        print("                     |-> disable \tDisable OpenHUB at the login of this user")
+        print("                     |-> start \tStart OpenHUB in background")
+        print("                     |-> stop \tStop OpenHUB in background")
+        print("                     |-> help\tShow this guide ")
+    else:
+        print('Error, invalid autostart arg, use "open-hub autostart help" to see a guide')
+
+
 elif command == "help":
-    print("main.py _____")
+    print("open-hub _____")
     print("          |-> start  ______ \tStart OpenHomeHUB")
-    print("          |             |-> station/daemon")
+    print("          |             |-> station/core")
+    print("          |")
+    print("          |-> daemon ______\tEnable/Disable/start/Stop autostart")
+    print("          |             |-> enable/disable/start/stop")
     print("          |")
     print("          |-> help\tShow this guide ")
 
 else:
-    print('Error, invalid arg, use "main.py help" to see a guide')
+    print('Error, invalid arg, use "open-hub help" to see a guide')

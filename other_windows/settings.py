@@ -15,6 +15,8 @@ settings_window = None
 config = None
 
 def open_settings_page():
+    def test_mode_enable():    
+        return os.path.isfile("test.txt")
     data_path = ""
     global settings_window, config
     global language, music_widget_status, calendar_widget_status
@@ -247,7 +249,10 @@ def open_settings_page():
     main_layout.addLayout(data_widget)
     main_layout.addStretch()
 
-    settings_window.showMaximized()
+    if test_mode_enable():
+        settings_window.showMaximized()
+    else:
+        settings_window.showFullScreen()
     return settings_window
 
 if __name__ == "__main__":

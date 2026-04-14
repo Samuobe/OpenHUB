@@ -576,7 +576,7 @@ app.processEvents()
 from PyQt6.QtWidgets import QMainWindow, QHBoxLayout, QPushButton, QVBoxLayout, QWidget, QLabel, QDialog, QGridLayout
 import datetime
 from PyQt6.QtCore import QTime, Qt, QTimer
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QScrollArea, QFrame
+from PyQt6.QtWidgets import QLabel, QPushButton, QScrollArea, QFrame, QMenu
 import re
 import requests
 from Lattuga.lattuga import voice_input, Lattuga, manual_input
@@ -588,6 +588,7 @@ import alsaaudio
 import importlib
 import json
 from other_windows.settings import open_settings_page
+from PyQt6.QtGui import QAction
 
 
 mixer = alsaaudio.Mixer()
@@ -607,30 +608,133 @@ root.setCentralWidget(central_widget)
 main_layout = QVBoxLayout(central_widget)
 
 
-#up bar
+# up bar
+def show_energy_popup():
+    dialog = QDialog(root)
+    
+    dialog.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+    dialog.setModal(True)
+    dialog.setFixedSize(250, 150)
+    
+    dialog.setStyleSheet("""
+        QDialog {
+            background-color: #ffffff;
+            border-radius: 8px;
+            border: 2px solid #0078D7; /* Aggiunto un bordino per farlo risaltare */
+        }
+        QPushButton {
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 8px;
+            font-size: 14px;
+        }
+        QPushButton:hover {
+            background-color: #e0e0e0;
+        }
+        QPushButton#shutdown {
+            background-color: #ff4c4c;
+            color: white;
+            border: none;
+        }
+        QPushButton#shutdown:hover {
+            background-color: #e60000;
+        }
+    """)
+
+    layout = QVBoxLayout(dialog)
+    layout.setSpacing(10)
+    layout.setContentsMargins(20, 20, 20, 20)
+
+    btn_shutdown = QPushButton(lpak.get("Power off", language))
+    btn_shutdown.setObjectName("shutdown")
+    btn_restart = QPushButton(lpak.get("Reboot", language))
+    btn_close = QPushButton("Chiudi")
+
+    btn_shutdown.pressed.connect(lambda: os.system("systemctl poweroff"))
+    btn_restart.pressed.connect(lambda: os.system("systemctl reboot"))
+    btn_close.pressed.connect(dialog.close)
+
+    layout.addWidget(btn_shutdown)
+    layout.addWidget(btn_restart)
+    layout.addWidget(btn_close)
+
+    dialog.exec()
+
 up_bar_layout = QHBoxLayout()
+up_bar_layout.setContentsMargins(10, 10, 10, 10)
 
 microphone_icon = QPushButton(text="🎤")
+microphone_icon.setFixedSize(40, 40)
 microphone_icon.pressed.connect(ask_ai)
 
-status_label = QLabel(text=f"{lpak.get("Welcome", language)}!")
+status_label = QLabel(text=f"{lpak.get('Welcome', language)}!")
+status_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #333;")
 
-settings_button = QPushButton(text="⚙️")
-settings_button.pressed.connect(open_settings_page)
+menu_button = QPushButton(text="☰") 
+menu_button.setFixedSize(40, 40)
 
-store_button = QPushButton(text="🏪")
-store_button.pressed.connect(open_store_page)
+button_style = """
+    QPushButton {
+        background-color: transparent;
+        border: none;
+        border-radius: 8px;
+        font-size: 20px;
+    }
+    QPushButton:hover {
+        background-color: #e0e0e0;
+    }
+    QPushButton::menu-indicator { 
+        image: none; 
+    }
+"""
+microphone_icon.setStyleSheet(button_style)
+menu_button.setStyleSheet(button_style)
+
+dropdown_menu = QMenu()
+dropdown_menu.setStyleSheet("""
+    QMenu {
+        background-color: #ffffff;
+        border: 1px solid #dcdcdc;
+        border-radius: 8px;
+        padding: 5px;
+    }
+    QMenu::item {
+        padding: 8px 30px 8px 20px;
+        font-size: 15px;
+        color: #333;
+        border-radius: 5px;
+        margin: 2px 0px;
+    }
+    QMenu::item:selected {
+        background-color: #0078D7;
+        color: #ffffff;
+    }
+""")
+
+action_settings = QAction(f"⚙️ {lpak.get("Settings", language)}", menu_button) 
+action_store = QAction("🏪 Store", menu_button)
+action_energy_options = QAction(f"🔋 {lpak.get("Energy options", language)}", menu_button)
+
+action_settings.triggered.connect(open_settings_page)
+#action_store.triggered.connect(open_store_page)
+action_energy_options.triggered.connect(show_energy_popup)
+
+dropdown_menu.addAction(action_settings)
+#dropdown_menu.addAction(action_store)
+dropdown_menu.addAction(action_energy_options)
+
+menu_button.setMenu(dropdown_menu)
 
 up_bar_layout.addWidget(microphone_icon, alignment=Qt.AlignmentFlag.AlignLeft)
-up_bar_layout.addWidget(status_label)
-up_bar_layout.addWidget(settings_button, alignment=Qt.AlignmentFlag.AlignRight)
-up_bar_layout.addWidget(store_button, alignment=Qt.AlignmentFlag.AlignRight)
+up_bar_layout.addWidget(status_label, alignment=Qt.AlignmentFlag.AlignLeft)
 
+up_bar_layout.addStretch() 
+up_bar_layout.addWidget(menu_button, alignment=Qt.AlignmentFlag.AlignRight)
 
 main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-up_bar_layout.setContentsMargins(0, 0, 0, 0)
 main_layout.addLayout(up_bar_layout)
-up_bar_layout.addStretch()
+
 
 #### Central data 
 #time

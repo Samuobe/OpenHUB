@@ -402,6 +402,7 @@ def weather():
     return "Say to the user: whatch out of your window"
 
 def timer(name: str = None, time: str=None, tipe: str=0):
+    os.makedirs("operations_data", exist_ok=True)
     if name == None:
         if tipe == 0: #timer
             name="Timer"
