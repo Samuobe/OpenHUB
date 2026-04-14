@@ -9,7 +9,6 @@ setup_autostart() {
     echo "========================================================================"
     echo " Type 'y' for YES (Recommended for most users)"
     echo " Type 'n' for NO (You will need to start it manually every time)"
-    echo " PLEASE NOTE!!!! Don't enable if you will not use GUI, but porbably you know what you are doing if you don't need GUI"
     read -p "Enable automatic startup? (y/n): " setup_systemd
 
     if [[ "$setup_systemd" =~ ^[Yy]$ ]]; then
@@ -26,7 +25,8 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/open-hub
+# QUI È DOVE PASSI GLI ARGOMENTI "start station"
+ExecStart=/usr/bin/open-hub start station
 Restart=on-failure
 RestartSec=5
 
@@ -54,6 +54,7 @@ EOF
         echo "Automatic startup skipped. You can always start it manually."
     fi
 }
+
 
 
 echo "Welcome to the OpenHUB installation program!"
