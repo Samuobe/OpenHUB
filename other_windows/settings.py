@@ -18,6 +18,7 @@ setting_status_label = None
 
 def open_settings_page():
     shutil.copyfile("config.conf","config.conf.old")
+    shutil.copyfile("credential.env","credential.env.old")
     def test_mode_enable():    
         return os.path.isfile("test.txt")
     data_path = ""
@@ -65,7 +66,14 @@ def open_settings_page():
                 old_config = f2.read()
             os.remove("config.conf.old")
 
-            if new_config != old_config:
+            with open('credential.env', 'r') as f1:
+                new_credential = f1.read()
+
+            with open('credential.env.old', 'r') as f2:
+                old_credentuial = f2.read()
+            os.remove("credential.env.old")
+
+            if new_config != old_config or new_credential != old_credentuial:
                 os.system("systemctl --user restart openhub.service")  
             else:
                 pass 
