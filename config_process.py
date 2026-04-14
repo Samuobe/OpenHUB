@@ -293,7 +293,7 @@ def show_finished_screen():
         QPushButton:hover { background-color: #005A9E; }
     """)
     close_btn.setFixedWidth(200)
-    close_btn.pressed.connect(root.close) 
+    close_btn.clicked.connect(root.close) 
 
     central_layout.addWidget(msg, alignment=Qt.AlignmentFlag.AlignCenter)
     central_layout.addWidget(close_btn, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -375,7 +375,7 @@ def run_setup(use_gui=True, force=False):
         QPushButton:hover { background-color: #005A9E; }
     """)
     start_config_button.setFixedWidth(200)
-    start_config_button.pressed.connect(show_web_server_info)
+    start_config_button.clicked.connect(show_web_server_info)
 
     central_layout.addWidget(first_message_label, alignment=Qt.AlignmentFlag.AlignCenter)
     central_layout.addWidget(start_config_button, alignment=Qt.AlignmentFlag.AlignCenter)

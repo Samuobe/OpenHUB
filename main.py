@@ -130,7 +130,7 @@ elif command == "daemon":
         print("open-hub autostart_____")
         print("                     |-> enable \tEnable OpenHUB at the login of this user")
         print("                     |-> disable \tDisable OpenHUB at the login of this user")
-        print("                     |-> status \tee OpenHUB status in background")
+        print("                     |-> status \tSee OpenHUB status in background")
         print("                     |-> start \tStart OpenHUB in background")
         print("                     |-> stop \tStop OpenHUB in background")
         print("                     |-> restart \tRestart OpenHUB")

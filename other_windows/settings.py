@@ -35,7 +35,7 @@ def open_settings_page():
         setting_status_label.setText(lpak.get("Close to confirm changes", language))
 
     def setting_status(a):
-        if a.strip()=="enable":
+        if a.strip().lower()=="enable":
             return True
         else:
             return False
@@ -47,6 +47,11 @@ def open_settings_page():
 
     music_widget_status = config.get("Widgets", "Music")
     calendar_widget_status = config.get("Widgets", "Calendar")
+
+    def write_settings():
+        global config
+        with open(f"{data_path}config.conf", "w") as configfile:
+                config.write(configfile)
 
     def close_window():
         global config
@@ -87,7 +92,7 @@ def open_settings_page():
     status_label = QLabel(f"{lpak.get('Settings', language)}")
     close_button = QPushButton("❌")
 
-    close_button.pressed.connect(close_window)
+    close_button.clicked.connect(close_window)
 
     up_bar_layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignLeft)
     up_bar_layout.addWidget(status_label)
@@ -135,7 +140,7 @@ def open_settings_page():
 
     label_music_widget = QLabel("Musica")
     button_setting_music =QPushButton()
-    button_setting_music.pressed.connect(change_music_widget_status)
+    button_setting_music.clicked.connect(change_music_widget_status)
     if setting_status(music_widget_status):
         button_setting_music.setText(lpak.get("Disable", language))
     else:
@@ -156,7 +161,7 @@ def open_settings_page():
 
     label_calendar_widget = QLabel(lpak.get("Calendar", language))
     button_setting_calendar = QPushButton()
-    button_setting_calendar.pressed.connect(change_calendar_widget_status)
+    button_setting_calendar.clicked.connect(change_calendar_widget_status)
 
     if setting_status(calendar_widget_status):
         button_setting_calendar.setText(lpak.get("Disable", language))
@@ -176,13 +181,13 @@ def open_settings_page():
         notify.system_notification(f"{lpak.get('New language', new_language)}: {new_language}", f"{lpak.get('Language updated', new_language)}. {lpak.get('Language updated', new_language)}!")
 
     button_change_language = QPushButton(lpak.get("Apply language", language))
-    button_change_language.pressed.connect(change_language)
+    button_change_language.clicked.connect(change_language)
 
     #reconfig button
     def start_reconfig():
         config_process.restart_configuration(use_gui=True)
     button_edit_credential = QPushButton(lpak.get("Edit services credentials", language)) 
-    button_edit_credential.pressed.connect(start_reconfig)
+    button_edit_credential.clicked.connect(start_reconfig)
 
     data_widget = QGridLayout()
     data_widget.setHorizontalSpacing(20) 
@@ -250,7 +255,7 @@ def open_settings_page():
         with open(f"{custom_widgets_path}/{plugin}/status.conf", "r") as f:
             status = f.readline().strip().lower()
             
-        plugin_button.pressed.connect(lambda checked=False, p=plugin, s=status, b=plugin_button: change_custom_widget_status(custom_widgets_path+"/"+p, s, b))
+        plugin_button.clicked.connect(lambda checked=False, p=plugin, s=status, b=plugin_button: change_custom_widget_status(custom_widgets_path+"/"+p, s, b))
         
         if setting_status(status):
             plugin_button.setText(lpak.get("Disable", language))

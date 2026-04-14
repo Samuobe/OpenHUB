@@ -446,10 +446,10 @@ def update_music():
                 
             if music_status == "Playing":
                 music_play_button.setText("⏸️")
-                music_play_button.pressed.connect(lambda: play_song_command(2))
+                music_play_button.clicked.connect(lambda: play_song_command(2))
             else:
                 music_play_button.setText("▶️")
-                music_play_button.pressed.connect(lambda: play_song_command(1))
+                music_play_button.clicked.connect(lambda: play_song_command(1))
                 
     except subprocess.TimeoutExpired:
         pass
@@ -600,7 +600,7 @@ device_name = config.get("Device info", "device_name")
 
 
 root = QMainWindow()
-root.setWindowTitle("OpenHomeHUB")
+root.setWindowTitle("OpenHUB")
 
 
 central_widget = QWidget()
@@ -655,12 +655,11 @@ def show_energy_popup():
     btn_restart_openhub = QPushButton(lpak.get("Restart OpenHUB", language))
     btn_close_openhub = QPushButton(lpak.get("Close OpenHUB", language))
 
-    btn_shutdown.pressed.connect(lambda: os.system("systemctl poweroff"))
-    btn_restart.pressed.connect(lambda: os.system("systemctl reboot"))
-    btn_close.pressed.connect(dialog.close)
-    btn_restart_openhub
-    btn_close_openhub.pressed.connect(lambda: os.system("systemctl --user stop openhub.service"))
-    btn_restart_openhub.pressed.connect(lambda: os.system("systemctl --user restart openhub.service "))
+    btn_shutdown.clicked.connect(lambda: os.system("systemctl poweroff"))
+    btn_restart.clicked.connect(lambda: os.system("systemctl reboot"))
+    btn_close.clicked.connect(dialog.close)
+    btn_close_openhub.clicked.connect(lambda: os.system("systemctl --user stop openhub.service"))
+    btn_restart_openhub.clicked.connect(lambda: os.system("systemctl --user restart openhub.service "))
 
     layout.addWidget(btn_restart_openhub)
     layout.addWidget(btn_close_openhub)
@@ -675,7 +674,7 @@ up_bar_layout.setContentsMargins(10, 10, 10, 10)
 
 microphone_icon = QPushButton(text="🎤")
 microphone_icon.setFixedSize(40, 40)
-microphone_icon.pressed.connect(ask_ai)
+microphone_icon.clicked.connect(ask_ai)
 
 status_label = QLabel(text=f"{lpak.get('Welcome', language)}!")
 status_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #333;")
@@ -804,13 +803,13 @@ def create_music_widget():
 
     music_play_button = QPushButton(text="▶️")
     music_next_song_button = QPushButton(text="⏭️")
-    music_next_song_button.pressed.connect(next_song_command)
+    music_next_song_button.clicked.connect(next_song_command)
     music_previus_song_button = QPushButton(text="⏮️")
-    music_previus_song_button.pressed.connect(previous_song_command)
+    music_previus_song_button.clicked.connect(previous_song_command)
     music_volume_up_button = QPushButton(text="🔊")
-    music_volume_up_button.pressed.connect(turn_up_volume)
+    music_volume_up_button.clicked.connect(turn_up_volume)
     music_volume_down_button = QPushButton(text="🔉")
-    music_volume_down_button.pressed.connect(turn_down_volume)
+    music_volume_down_button.clicked.connect(turn_down_volume)
 
     buttons = [music_previus_song_button, music_play_button, music_next_song_button,music_volume_down_button, music_volume_up_button]
     for btn in buttons:
