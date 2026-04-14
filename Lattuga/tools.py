@@ -33,9 +33,9 @@ caldav_password = config.get("CALDAV", "caldav_password")
 home_assistant_url = config.get("Home Assistant", "home_assistant_url")
 home_assistant_token = config.get("Home Assistant", "home_assistant_token")
 
-subsonic_url = config.get("Subsonic", "SUBSONIC_URL")
-subsonic_username = config.get("Subsonic", "SUBSONIC_USERNAME")
-subsonic_password = config.get("Subsonic", "SUBSONIC_PASSWORD")
+subsonic_url = config.get("Subsonic", "subsonic_url")
+subsonic_username = config.get("Subsonic", "subsonic_username")
+subsonic_password = config.get("Subsonic", "subsonic_password")
 
 
 #SET CALDAV
