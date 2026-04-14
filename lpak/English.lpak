@@ -27,8 +27,10 @@ Bottom left|Bottom left
 Than click|Than click
 Configuration saved!|Configuration saved!
 Energy options|Energy options
-Reboot|Reboot
-Power off|Power off
+System reboot|System reboot
+System power off|System poweroff
+Close OpenHUB|Close OpenHUB
+Restart OpenHUB|Restart OpenHUB
 
 #Buttons
 Stop and return to the home page|Stop and return to the home page

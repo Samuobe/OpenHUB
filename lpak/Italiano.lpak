@@ -27,8 +27,10 @@ Bottom left|In basso a sinistra
 Than click|Quindi clicca
 Configuration saved!|Configurazione salvata!
 Energy options|Opsioni energetiche
-Reboot|Riavvia
-Power off|Spegni
+System reboot|Riavvia il sistema
+System power off|Spegni il sistema
+Close OpenHUB|Esci da OpenHUB
+Restart OpenHUB|Riavvia OpenHUB
 
 #Buttons
 Stop and return to the home page|Ferma e torna alla home

@@ -1,31 +1,24 @@
 #!/bin/bash
 
 # Funzione per configurare l'avvio automatico (systemd user)
+# Funzione per configurare systemd (creazione sempre, abilitazione opzionale)
 setup_autostart() {
     echo
     echo "========================================================================"
-    echo " Do you want to start OpenHUB automatically when you turn on your computer?"
-    echo " This will also enable automatic updates in the background."
+    echo " OpenHUB systemd service setup"
     echo "========================================================================"
-    echo " Type 'y' for YES (Recommended for most users)"
-    echo " Type 'n' for NO (You will need to start it manually every time)"
-    read -p "Enable automatic startup? (y/n): " setup_systemd
 
-    if [[ "$setup_systemd" =~ ^[Yy]$ ]]; then
-        echo "Configuring automatic startup..."
-        
-        # Crea la cartella per i servizi utente se non esiste
-        mkdir -p ~/.config/systemd/user/
-        
-        # Crea il file del servizio
-        cat <<EOF > ~/.config/systemd/user/openhub.service
+    # Crea la cartella per i servizi utente se non esiste
+    mkdir -p ~/.config/systemd/user/
+
+    # Crea sempre il file del servizio
+    cat <<EOF > ~/.config/systemd/user/openhub.service
 [Unit]
 Description=OpenHUB - Smart Home Dashboard
 After=network.target
 
 [Service]
 Type=simple
-# QUI È DOVE PASSI GLI ARGOMENTI "start station"
 ExecStart=/usr/bin/open-hub start station
 Restart=on-failure
 RestartSec=5
@@ -34,25 +27,35 @@ RestartSec=5
 WantedBy=default.target
 EOF
 
-        # Ricarica systemd per leggere il nuovo file
-        systemctl --user daemon-reload
-        
-        # Abilita l'avvio automatico
+    # Ricarica systemd
+    systemctl --user daemon-reload
+
+    echo "Service file created successfully."
+    echo
+    echo "Do you want to enable OpenHUB at startup?"
+    echo "Type 'y' for YES"
+    echo "Type 'n' for NO"
+    read -p "Enable automatic startup? (y/n): " setup_systemd
+
+    if [[ "$setup_systemd" =~ ^[Yy]$ ]]; then
         systemctl --user enable openhub.service
-        
-        echo "Automatic startup configured successfully!"
         echo
-        
-        # Chiede se avviarlo subito
-        read -p "Do you want to start OpenHUB right now? (y/n): " start_now
-        if [[ "$start_now" =~ ^[Yy]$ ]]; then
-            echo "Starting OpenHUB..."
-            systemctl --user start openhub.service
-            echo "OpenHUB is now running in the background!"
-        fi
+        echo "Autostart ENABLED."
+        echo "To disable and stop it later, use:"
+        echo "  open-hub daemon stop disable"
     else
-        echo "Automatic startup skipped. You can always start it manually."
+        echo
+        echo "Autostart NOT enabled."
+        echo "You can enable it later with:"
+        echo "  open-hub daemon enable"
     fi
+
+    echo
+    echo "Configuration finished."
+    echo "To start OpenHUB manually, run:"
+    echo "  open-hub daemon start"
+    echo
+    echo "NOTE: The service has NOT been started automatically."
 }
 
 

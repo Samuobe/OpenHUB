@@ -632,12 +632,12 @@ def show_energy_popup():
         QPushButton:hover {
             background-color: #e0e0e0;
         }
-        QPushButton#shutdown {
+        QPushButton#system {
             background-color: #ff4c4c;
             color: white;
             border: none;
         }
-        QPushButton#shutdown:hover {
+        QPushButton#system:hover {
             background-color: #e60000;
         }
     """)
@@ -646,15 +646,24 @@ def show_energy_popup():
     layout.setSpacing(10)
     layout.setContentsMargins(20, 20, 20, 20)
 
-    btn_shutdown = QPushButton(lpak.get("Power off", language))
+
+    btn_shutdown = QPushButton(lpak.get("System power off", language))
     btn_shutdown.setObjectName("shutdown")
-    btn_restart = QPushButton(lpak.get("Reboot", language))
-    btn_close = QPushButton("Chiudi")
+    btn_restart = QPushButton(lpak.get("System reboot", language))
+    btn_restart.setObjectName("shutdown")
+    btn_close = QPushButton(lpak.get("Close", language))
+    btn_restart_openhub = QPushButton(lpak.get("Restart OpenHUB", language))
+    btn_close_openhub = QPushButton(lpak.get("Close OpenHUB", language))
 
     btn_shutdown.pressed.connect(lambda: os.system("systemctl poweroff"))
     btn_restart.pressed.connect(lambda: os.system("systemctl reboot"))
     btn_close.pressed.connect(dialog.close)
+    btn_restart_openhub
+    btn_close_openhub.pressed.connect(lambda: os.system("systemctl --user stop openhub.service"))
+    btn_restart_openhub.pressed.connect(lambda: os.system("systemctl --user start openhub.service "))
 
+    layout.addWidget(btn_restart_openhub)
+    layout.addWidget(btn_close_openhub)
     layout.addWidget(btn_shutdown)
     layout.addWidget(btn_restart)
     layout.addWidget(btn_close)

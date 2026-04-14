@@ -14,7 +14,6 @@ conflicts=('open-hub')
 
 backup=(
     'usr/share/open-hub/config.conf'
-    'usr/share/open-hub/credential.env'
 )
 
 source=("git+$url.git")

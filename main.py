@@ -55,6 +55,10 @@ if command == "start":
         specific = None
         
     if specific == "station":
+        print("###################")
+        print("ATTENCTION!!! DON'T USE THIS IF YOU DON'T KNOW WHAT YOU ARE DOING!!!")
+        print('USE "open-hub daemon start" TO START OPENHUB')
+        print("###################")
         if not check_configuration():
             run_setup()
 
@@ -129,14 +133,20 @@ elif command == "daemon":
 
 
 elif command == "help":
+    print("OpenHUB guide. By: Samuele Oberti")
+    print("See: https://github.com/Samuobe/OpenHUB")
+    print("")
     print("open-hub _____")
-    print("          |-> start  ______ \tStart OpenHomeHUB")
+    print("          |-> start  ______ \tStart OpenHomeHUB (DON'T USE THIS IF YOU DON'T KNOW WHAT YOU ARE DOING!)")
     print("          |             |-> station/core")
     print("          |")
-    print("          |-> daemon ______\tEnable/Disable/start/Stop autostart")
+    print("          |-> daemon ______\tEnable/Disable Autostart\tStart/Stop Program in background (USE THIS TO START OPNEHUB)")
     print("          |             |-> enable/disable/start/stop")
     print("          |")
     print("          |-> help\tShow this guide ")
+    print("")
+    print("PLEASE NOTE!!!!! Don't use *start* to use this program normally, use *daemon*")
+    print("")
 
 else:
     print('Error, invalid arg, use "open-hub help" to see a guide')
