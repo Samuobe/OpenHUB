@@ -614,7 +614,7 @@ def show_energy_popup():
     
     dialog.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
     dialog.setModal(True)
-    dialog.setFixedSize(250, 150)
+    dialog.setFixedSize(350, 250)
     
     dialog.setStyleSheet("""
         QDialog {
@@ -644,7 +644,7 @@ def show_energy_popup():
 
     layout = QVBoxLayout(dialog)
     layout.setSpacing(10)
-    layout.setContentsMargins(20, 20, 20, 20)
+    layout.setContentsMargins(10, 10, 10, 10)
 
 
     btn_shutdown = QPushButton(lpak.get("System power off", language))
