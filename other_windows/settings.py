@@ -14,13 +14,14 @@ import shutil
 
 settings_window = None 
 config = None
+setting_status_label = None
 
 def open_settings_page():
     shutil.copyfile("config.conf","config.conf.old")
     def test_mode_enable():    
         return os.path.isfile("test.txt")
     data_path = ""
-    global settings_window, config
+    global settings_window, config, setting_status_label
     global language, music_widget_status, calendar_widget_status
 
     avaible_languages_temp = glob.glob(f"{data_path}lpak/*.lpak")
@@ -29,7 +30,10 @@ def open_settings_page():
         avaible_languages.append(language.split("/")[-1].split(".")[0])
     avaible_languages.sort(key=str.lower)
 
-        
+    def set_edited_status():
+        global setting_status_label
+        setting_status_label.setText(lpak.get("Close to confirm changes", language))
+
     def setting_status(a):
         if a.strip()=="enable":
             return True
@@ -45,6 +49,9 @@ def open_settings_page():
     calendar_widget_status = config.get("Widgets", "Calendar")
 
     def close_window():
+        global config
+        with open(f"{data_path}config.conf", "w") as configfile:
+            config.write(configfile)
         try:
             with open('config.conf', 'r') as f1:
                 new_config = f1.read()
@@ -61,13 +68,7 @@ def open_settings_page():
         except Exception as e:
             print("Error during confronting:", e)
     
-        settings_window.close()
-
-    
-    def write_settings():
-        global config
-        with open(f"{data_path}config.conf", "w") as configfile:
-            config.write(configfile)
+        settings_window.close()        
 
     if settings_window is not None:
         settings_window.show()  
@@ -121,6 +122,7 @@ def open_settings_page():
     label_widget_title = QLabel(lpak.get("Default widgets", language))
     def change_music_widget_status():
         global music_widget_status, config
+        set_edited_status()
         if setting_status(music_widget_status):
             val = "Disable"
             button_setting_music.setText(lpak.get("Enable", language))
@@ -141,6 +143,7 @@ def open_settings_page():
     
     def change_calendar_widget_status():
         global calendar_widget_status, config
+        set_edited_status()
         if setting_status(calendar_widget_status):
             val = "Disable"
             button_setting_calendar.setText(lpak.get("Enable", language))
@@ -160,13 +163,17 @@ def open_settings_page():
     else:
         button_setting_calendar.setText(lpak.get("Enable", language))
 
+    #label
+    setting_status_label = QLabel()
+
     #Buttons
     def change_language():
-        global config   
+        global config
+        set_edited_status()
         new_language = menu_select_language.currentText()
         config.set("User data", "Language", new_language)
         write_settings()
-        notify.system_notification(f"{lpak.get('New language', new_language)}: {new_language}", f"{lpak.get('Language updated', new_language)}. {lpak.get('Please reboot', new_language)}")
+        notify.system_notification(f"{lpak.get('New language', new_language)}: {new_language}", f"{lpak.get('Language updated', new_language)}. {lpak.get('Language updated', new_language)}!")
 
     button_change_language = QPushButton(lpak.get("Apply language", language))
     button_change_language.pressed.connect(change_language)
@@ -174,7 +181,7 @@ def open_settings_page():
     #reconfig button
     def start_reconfig():
         config_process.restart_configuration(use_gui=True)
-    button_edit_credential = QPushButton("Edit services credentials") 
+    button_edit_credential = QPushButton(lpak.get("Edit services credentials", language)) 
     button_edit_credential.pressed.connect(start_reconfig)
 
     data_widget = QGridLayout()
@@ -258,6 +265,7 @@ def open_settings_page():
 
     data_widget.addWidget(create_line(), bottom_row, 0, 1, 4)
     data_widget.addWidget(button_edit_credential, bottom_row + 1, 0, 1, 4)
+    data_widget.addWidget(setting_status_label, bottom_row+2,0,1, 1)
 
 
     data_widget.setColumnStretch(0, 1)
