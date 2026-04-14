@@ -1,5 +1,60 @@
 #!/bin/bash
 
+# Funzione per configurare l'avvio automatico (systemd user)
+setup_autostart() {
+    echo
+    echo "========================================================================"
+    echo " Do you want to start OpenHUB automatically when you turn on your computer?"
+    echo " This will also enable automatic updates in the background."
+    echo "========================================================================"
+    echo " Type 'y' for YES (Recommended for most users)"
+    echo " Type 'n' for NO (You will need to start it manually every time)"
+    echo " PLEASE NOTE!!!! Don't enable if you will not use GUI, but porbably you know what you are doing if you don't need GUI"
+    read -p "Enable automatic startup? (y/n): " setup_systemd
+
+    if [[ "$setup_systemd" =~ ^[Yy]$ ]]; then
+        echo "Configuring automatic startup..."
+        
+        # Crea la cartella per i servizi utente se non esiste
+        mkdir -p ~/.config/systemd/user/
+        
+        # Crea il file del servizio
+        cat <<EOF > ~/.config/systemd/user/openhub.service
+[Unit]
+Description=OpenHUB - Smart Home Dashboard
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/open-hub
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+
+        # Ricarica systemd per leggere il nuovo file
+        systemctl --user daemon-reload
+        
+        # Abilita l'avvio automatico
+        systemctl --user enable openhub.service
+        
+        echo "Automatic startup configured successfully!"
+        echo
+        
+        # Chiede se avviarlo subito
+        read -p "Do you want to start OpenHUB right now? (y/n): " start_now
+        if [[ "$start_now" =~ ^[Yy]$ ]]; then
+            echo "Starting OpenHUB..."
+            systemctl --user start openhub.service
+            echo "OpenHUB is now running in the background!"
+        fi
+    else
+        echo "Automatic startup skipped. You can always start it manually."
+    fi
+}
+
 
 echo "Welcome to the OpenHUB installation program!"
 echo "What do you want to do?"
@@ -34,11 +89,21 @@ if [[ "$action" == "1" ]]; then
 
     cd ..
     rm -rf open-hub-install
+    
+    # Richiama la configurazione systemd dopo l'installazione
+    setup_autostart
 
 elif [[ "$action" == "2" ]]; then
     echo
     echo
     echo "Uninstalling OpenHUB..."
+    
+    # Ferma e disabilita il servizio se esiste prima di disinstallare
+    systemctl --user stop openhub.service 2>/dev/null
+    systemctl --user disable openhub.service 2>/dev/null
+    rm -f ~/.config/systemd/user/openhub.service
+    systemctl --user daemon-reload
+    
     sudo pacman -Rns open-hub
     sudo pacman -Rns open-hub-git
     sudo pacman -Rns open-hub-git-dev
@@ -58,8 +123,9 @@ elif [[ "$action" == "5" ]]; then
 
     cd ..
     sudo rm -rf open-hub-install
+    
+    # Richiama la configurazione systemd dopo l'installazione
+    setup_autostart
 fi
-
-
 
 rm -- "$0"

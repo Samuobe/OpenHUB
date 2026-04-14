@@ -23,27 +23,30 @@ package() {
     # Copia tutto il progetto in /usr/share/open-hub
     install -dm1777 "$pkgdir/usr/share/open-hub"
     cp -r "$srcdir/OpenHUB/"* "$pkgdir/usr/share/open-hub/"
-
-    # Crea la cartella dati globale con permessi corretti
-    install -dm1777 "$pkgdir/var/lib/open-hub"
     
-    # Crea un wrapper in /usr/bin per lanciare l'applicazione
-    install -Dm755 /dev/stdin "$pkgdir/usr/bin/open-hub" <<EOF
+    # Crea la cartella /usr/bin se non esiste
+    mkdir -p "$pkgdir/usr/bin"
+    
+    # Crea il file eseguibile open-hub usando cat
+    cat << 'EOF' > "$pkgdir/usr/bin/open-hub"
 #!/bin/sh
 cd /usr/share/open-hub
-exec python3 /usr/share/open-hub/main.py "\$@"
+exec python3 /usr/share/open-hub/main.py "$@"
 EOF
 
-    # Icona (assicurati che il file si chiami icon.png nella root del tuo repo OpenHUB)
+    # Rende il file eseguibile
+    chmod 755 "$pkgdir/usr/bin/open-hub"
+
+    # Icona
     if [ -f "$srcdir/OpenHUB/icon.png" ]; then
         install -Dm644 "$srcdir/OpenHUB/icon.png" "$pkgdir/usr/share/pixmaps/open-hub.png"
     fi
 
-    # File .desktop (assicurati che esista un file open-hub.desktop nel tuo repo, altrimenti dovrai generarlo)
+    # File .desktop
     if [ -f "$srcdir/OpenHUB/open-hub.desktop" ]; then
         install -Dm644 "$srcdir/OpenHUB/open-hub.desktop" "$pkgdir/usr/share/applications/open-hub.desktop"
     fi
 
-    # File flag per riconoscere l'installazione via AUR (opzionale)
+    # File flag per riconoscere l'installazione via AUR
     install -Dm644 /dev/null "$pkgdir/usr/share/open-hub/AUR"
 }
