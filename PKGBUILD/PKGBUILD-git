@@ -11,6 +11,12 @@ depends=('python' 'python-pyqt6')
 makedepends=('git' 'python-setuptools')
 provides=('open-hub')
 conflicts=('open-hub')
+
+backup=(
+    'usr/share/open-hub/config.conf'
+    'usr/share/open-hub/credential.env'
+)
+
 source=("git+$url.git")
 md5sums=('SKIP')
 
@@ -23,7 +29,7 @@ package() {
     # Copia tutto il progetto in /usr/share/open-hub
     install -dm1777 "$pkgdir/usr/share/open-hub"
     cp -r "$srcdir/OpenHUB/"* "$pkgdir/usr/share/open-hub/"
-    
+    chmod -R 777 "$pkgdir/usr/share/open-hub"
     # Crea la cartella /usr/bin se non esiste
     mkdir -p "$pkgdir/usr/bin"
     
