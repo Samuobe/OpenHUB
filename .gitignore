@@ -11,3 +11,4 @@ playlist.m3u
 vlc_pid.txt
 *status.conf
 *clock.txt
+PKGBUILD

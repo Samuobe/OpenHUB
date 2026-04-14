@@ -16,10 +16,9 @@ def test_mode_enable():
 
 data_path = ""
 
-config =configparser.ConfigParser()
+config = configparser.ConfigParser()
 config.read("config.conf")
-language = config.get("User data", "Language")
-
+language = config.get("User data", "Language") if config.has_section("User data") else "English"
 
 config_file = f"{data_path}credential.env"
 config.optionxform = str 
@@ -52,9 +51,6 @@ CONFIG_SCHEMA = [
     }
 ]
 
-# ==========================================
-# WEB SERVER
-# ==========================================
 WEB_PORT = 8080
 
 class WebServerSignals(QObject):
@@ -89,11 +85,25 @@ class SetupHTTPRequestHandler(BaseHTTPRequestHandler):
                     h2 { color: #333; border-bottom: 2px solid #0078D7; padding-bottom: 5px; }
                     label { font-weight: bold; display: block; margin-top: 10px; }
                     input[type="text"], input[type="password"] { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+                    .input-group { display: flex; align-items: center; margin-top: 5px; }
+                    .input-group input { margin-top: 0; }
+                    .toggle-btn { margin-left: 10px; padding: 8px 12px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #eee; font-size: 16px; }
+                    .toggle-btn:hover { background: #ddd; }
                     .btn { display: block; width: 100%; background: #28A745; color: white; padding: 10px; border: none; border-radius: 5px; font-size: 16px; margin-top: 20px; cursor: pointer; }
                     .btn:hover { background: #218838; }
                     .optional { color: #888; font-size: 12px; font-weight: normal; }
                     .guide-box { background-color: #e7f3fe; border-left: 4px solid #0078D7; padding: 10px; margin-bottom: 15px; font-size: 14px; color: #333; }
                 </style>
+                <script>
+                    function togglePassword(inputId) {
+                        var input = document.getElementById(inputId);
+                        if (input.type === "password") {
+                            input.type = "text";
+                        } else {
+                            input.type = "password";
+                        }
+                    }
+                </script>
             </head>
             <body>
                 <div class="container">
@@ -105,7 +115,7 @@ class SetupHTTPRequestHandler(BaseHTTPRequestHandler):
                 sec_name = section["name"]
                 is_optional = section["optional"]
                 
-                opt_text = f" ({lpak.get("Optional leave blank to skip", language)})" if is_optional else f" ({lpak.get("Required", language)})"
+                opt_text = f" ({lpak.get('Optional, leave blank to skip', language)})" if is_optional else f" ({lpak.get('Required', language)})"
                 html += f"<h2>{sec_name}<span class='optional'>{opt_text}</span></h2>"
                 
                 if sec_name == "Home Assistant":
@@ -113,19 +123,36 @@ class SetupHTTPRequestHandler(BaseHTTPRequestHandler):
                     <div class="guide-box">
                         <b>{lpak.get("Home Assistant Token Guide", language)}:</b><br>
                         1. {lpak.get("Open your Home Assistant in your browser", language)}.<br>
-                        2. {lpak.get("Click on your", language)} <b>{lpak.get("Profile", language)}</b> ({lpak.get("bottom left", language).lower()}).<br>
-                        3. {lpak.get("Go to the page", language)} <b>{lpak.get("Security", language)}</b> ({lpak.get("at the top", language)}).<br>
+                        2. {lpak.get("Click on your", language)} <b>{lpak.get("Profile", language)}</b> ({lpak.get("Bottom left", language).lower()}).<br>
+                        3. {lpak.get("Go to the page", language)} <b>{lpak.get("Security", language)}</b> ({lpak.get("At the top", language).lower()}).<br>
                         4. {lpak.get("Scroll to the bottom of the section", language)} <b>{lpak.get("Long-term tokens", language)}</b>. {lpak.get("Than click", language)} <i>{lpak.get("Create token", language)}</i>.<br>
                         5. {lpak.get("Copy the very long token and paste it below!", language)}
                     </div>
                     """
                 
                 for key in section["keys"]:
-                    input_type = "password" if "password" in key.lower() else "text"
+                    is_secret = "password" in key.lower() or "token" in key.lower()
+                    input_type = "password" if is_secret else "text"
                     req_attr = "" if is_optional else "required"
+                    input_id = f"input_{sec_name}_{key}".replace(" ", "_").replace("-", "_")
+
+                    current_value = ""
+                    if config.has_option(sec_name, key):
+                        val = config.get(sec_name, key).strip()
+                        if val != "" and val != "-":
+                            current_value = val.replace('"', '&quot;') 
                     
                     html += f"<label>{key}</label>"
-                    html += f"<input type='{input_type}' name='{sec_name}|{key}' {req_attr}>"
+
+                    if is_secret:
+                        html += f"""
+                        <div class="input-group">
+                            <input type="{input_type}" id="{input_id}" name="{sec_name}|{key}" value="{current_value}" {req_attr}>
+                            <button type="button" class="toggle-btn" onclick="togglePassword('{input_id}')" title="Show/Hide">👁️</button>
+                        </div>
+                        """
+                    else:
+                        html += f"<input type='{input_type}' id='{input_id}' name='{sec_name}|{key}' value='{current_value}' {req_attr}>"
             
             html += f"""
                         <button type="submit" class="btn">{lpak.get("Save configuration", language)}</button>
@@ -190,7 +217,7 @@ def start_web_server():
     thread.start()
     return server
 
-def prepare_config_state():
+def prepare_config_state(force_all=False):
     if os.path.isfile(config_file):  
         config.read(config_file)
         
@@ -198,20 +225,21 @@ def prepare_config_state():
     
     for section in CONFIG_SCHEMA:
         sec_name = section["name"]
-        needs_config = False
+        needs_config = force_all 
         
-        if not config.has_section(sec_name):
-            needs_config = True
-        else:
-            for key in section["keys"]:
-                if not config.has_option(sec_name, key):
-                    needs_config = True
-                    break
-                
-                val = config.get(sec_name, key).strip()
-                if val == "":  
-                    needs_config = True
-                    break
+        if not force_all:
+            if not config.has_section(sec_name):
+                needs_config = True
+            else:
+                for key in section["keys"]:
+                    if not config.has_option(sec_name, key):
+                        needs_config = True
+                        break
+                    
+                    val = config.get(sec_name, key).strip()
+                    if val == "" or val == "-":  
+                        needs_config = True
+                        break
                     
         if needs_config:
             app_state["sections_to_configure"].append(section)
@@ -235,7 +263,7 @@ def show_web_server_info():
 
     ip_address = get_local_ip()
     
-    msg = QLabel(f"{lpak.get("To fill in the missing fields, log in via your browser", language)}:")
+    msg = QLabel(f"{lpak.get('To fill in the missing fields, log in via your browser', language)}:")
     msg.setStyleSheet("font: 14pt; margin-bottom: 10px;")
     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
@@ -243,7 +271,7 @@ def show_web_server_info():
     url_msg.setStyleSheet("font: bold 24pt; color: #0078D7; margin-bottom: 20px;")
     url_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
-    wait_msg = QLabel(f"{lpak.get("Pending completion from the webpage", language)}...")
+    wait_msg = QLabel(f"{lpak.get('Pending completion from the webpage', language)}...")
     wait_msg.setStyleSheet("font: italic 12pt; color: #666;")
     wait_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -255,7 +283,7 @@ def show_finished_screen():
     setting_label.setText(lpak.get("Completed", language))
     clear_layout(central_layout)
 
-    msg = QLabel(f"{lpak.get("Configuration completed successfully", language)}!\n{lpak.get("All data has been saved", language)}.")
+    msg = QLabel(f"{lpak.get('Configuration completed successfully', language)}!\n{lpak.get('All data has been saved', language)}.")
     msg.setStyleSheet("font: bold 16pt; margin-bottom: 20px; color: #28A745;")
     msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
@@ -270,13 +298,14 @@ def show_finished_screen():
     central_layout.addWidget(msg, alignment=Qt.AlignmentFlag.AlignCenter)
     central_layout.addWidget(close_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
-def run_setup(use_gui=True):
+
+def run_setup(use_gui=True, force=False):
     global root, central_layout, setting_label
     
-    prepare_config_state()
+    prepare_config_state(force_all=force)
     
     if len(app_state["sections_to_configure"]) == 0:
-        print("Everithing is already configured")
+        print("Everything is already configured")
         return
 
     web_server = start_web_server()
@@ -295,7 +324,10 @@ def run_setup(use_gui=True):
         print("✅ Configuration saved, starting system...")
         return
 
-    app = QApplication(sys.argv)
+    app = QApplication.instance()
+    if not app:
+        app = QApplication(sys.argv)
+        
     root = QMainWindow()
     root.setWindowTitle("OpenHomeHUB - CONFIG")
 
@@ -308,8 +340,8 @@ def run_setup(use_gui=True):
     up_bar_layout = QHBoxLayout()
     up_bar_style = "font: bold; font-size: 12pt; color: #333;"
 
-    title_label = QLabel(text=f"{lpak.get("Welcome", language)}")
-    setting_label = QLabel(text=f"{lpak.get("Home", language)}")
+    title_label = QLabel(text=f"{lpak.get('Welcome', language)}")
+    setting_label = QLabel(text=f"{lpak.get('Home', language)}")
     title_label.setStyleSheet(up_bar_style)
     setting_label.setStyleSheet(up_bar_style)
 
@@ -329,7 +361,10 @@ def run_setup(use_gui=True):
     central_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
     main_layout.addLayout(central_layout)
 
-    first_message = f"{lpak.get("Some settings are missing", language)}!\n{lpak.get("Let's start the web-based configuration", language)}."
+    msg_part1 = lpak.get("Some settings are missing" if not force else "Configuration restarted", language)
+    msg_part2 = lpak.get("Let's start the web-based configuration", language)
+    first_message = f"{msg_part1}!\n{msg_part2}."
+    
     first_message_label = QLabel(text=first_message)
     first_message_label.setStyleSheet("font: 16pt; margin-bottom: 20px;")
     first_message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -351,7 +386,12 @@ def run_setup(use_gui=True):
         root.showMaximized()
     else:
         root.showFullScreen()
+    
     app.exec()
+
+
+def restart_configuration(use_gui=True):
+    run_setup(use_gui=use_gui, force=True)
 
 
 if __name__ == "__main__":

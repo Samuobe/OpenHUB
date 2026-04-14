@@ -788,7 +788,6 @@ def load_external_widgets(griglia_layout, starting_line=1, starting_column=1):
             continue
 
         try:
-            # --- STATUS FILE ---
             status_file = os.path.join(plugin_path, "status.conf")
 
             if not os.path.isfile(status_file):
@@ -802,7 +801,6 @@ def load_external_widgets(griglia_layout, starting_line=1, starting_column=1):
                 print(f"{folder_name} disabled")
                 continue
 
-            # --- MANIFEST ---
             print(f"3. Reading manifest {folder_name}")
             with open(os.path.join(plugin_path, "manifest.json"), "r") as f:
                 manifest = json.load(f)
@@ -810,7 +808,6 @@ def load_external_widgets(griglia_layout, starting_line=1, starting_column=1):
             if not manifest.get("attivo", True):
                 continue
 
-            # --- IMPORT ---
             file_python_name = manifest['main'].replace(".py", "")
             class_name = manifest['main_class']
             module_name = f"apps.UI.{folder_name}.{file_python_name}"
@@ -821,16 +818,13 @@ def load_external_widgets(griglia_layout, starting_line=1, starting_column=1):
             ClasseWidget = getattr(loaded_module, class_name)
             plugin_instance = ClasseWidget()
 
-            # --- INIT ---
             print("6. Enabling widget")
             plugin_instance.on_enable()
             widget_ui = plugin_instance.get_widget()
 
-            # --- ADD ---
             griglia_layout.addWidget(widget_ui, current_line, current_column)
             print(f"7. Widget {folder_name} loaded!")
 
-            # --- GRID ---
             current_column += 1
             if current_column > 1:
                 current_column = 0

@@ -11,9 +11,11 @@ def test_mode_enable():
     return os.path.isfile("test.txt")
 def music_advice(text):
     
-    mp3_path = "custom/clock_music.mp3"
+    if os.path.isfile("custom/musical_notify.mp3"):
+        mp3_path = "custom/musical_notify.mp3"
+    else:
+        mp3_path = "custom/musical_notify_basic.mp3"
     
-    # Controllo di sicurezza se QApplication esiste già
     app = QApplication.instance()
     if not app:
         app = QApplication(sys.argv)
@@ -22,20 +24,17 @@ def music_advice(text):
         def __init__(self):
             super().__init__()
 
-            # 1. Impostiamo la finestra a schermo intero trasparente per coprire XFCE
             self.setWindowFlags(
                 Qt.WindowType.FramelessWindowHint | 
                 Qt.WindowType.WindowStaysOnTopHint
             )
             self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-            # 2. Layout Esterno (Invisibile) usato solo per centrare
             layout_esterno = QVBoxLayout(self)
             layout_esterno.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            # 3. Il Riquadro Reale (Visibile)
             main_frame = QFrame()
-            main_frame.setFixedSize(600, 300) # Dimensioni fisse per l'allarme
+            main_frame.setFixedSize(600, 300) 
             main_frame.setStyleSheet("""
                 QFrame {
                     background-color: #1e1e1e;
@@ -67,19 +66,16 @@ def music_advice(text):
             layout_principale.setContentsMargins(40, 40, 40, 40)
             layout_esterno.addWidget(main_frame)
 
-            # Testo dell'avviso
             label = QLabel(text)
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setWordWrap(True)
             layout_principale.addWidget(label)
 
-            # Bottone per chiudere
             btn = QPushButton("CHIUDI ALLARME")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(self.close_all)
             layout_principale.addWidget(btn)
 
-            # AUDIO
             self.audio_output = QAudioOutput()
             self.player = QMediaPlayer()
             self.player.setAudioOutput(self.audio_output)
@@ -89,12 +85,10 @@ def music_advice(text):
             self.player.mediaStatusChanged.connect(self.loop_audio)
             self.player.play()
 
-            # Focus soft (non aggressivo)
             self.focus_timer = QTimer()
             self.focus_timer.timeout.connect(self.bring_front)
             self.focus_timer.start(2000)
 
-            # 4. Mostra a SCHERMO INTERO se non siamo in modalità test
             if not test_mode_enable():
                 self.showFullScreen()
             else:

@@ -8,6 +8,7 @@ import glob
 import functions.lpak as lpak
 import json
 import functions.notify as notify
+import config_process
 
 
 settings_window = None 
@@ -39,7 +40,6 @@ def open_settings_page():
     music_widget_status = config.get("Widgets", "Music")
     calendar_widget_status = config.get("Widgets", "Calendar")
 
-
     def close_window():
         settings_window.close()
     
@@ -54,7 +54,7 @@ def open_settings_page():
         return settings_window
 
     settings_window = QMainWindow()
-    settings_window.setWindowTitle(f"OpenHUB - {lpak.get("Settings", language)}")
+    settings_window.setWindowTitle(f"OpenHUB - {lpak.get('Settings', language)}")
 
     central_widget = QWidget()
     settings_window.setCentralWidget(central_widget)
@@ -62,7 +62,7 @@ def open_settings_page():
 
     # Up bar
     up_bar_layout = QHBoxLayout()
-    status_label = QLabel(f"{lpak.get("Settings", language)}")
+    status_label = QLabel(f"{lpak.get('Settings', language)}")
     close_button = QPushButton("❌")
 
     close_button.pressed.connect(close_window)
@@ -73,18 +73,23 @@ def open_settings_page():
     up_bar_layout.addStretch()
 
     main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-    main_layout.setContentsMargins(0, 0, 0, 0)
+    main_layout.setContentsMargins(10, 10, 10, 10)
     main_layout.addLayout(up_bar_layout)
 
-    line = QFrame()
-    line.setFrameShape(QFrame.Shape.HLine)
-    line.setFrameShadow(QFrame.Shadow.Sunken)
+    # FUNZIONE PER CREARE NUOVE LINEE (Risolve il problema della linea che scompare)
+    def create_line():
+        l = QFrame()
+        l.setFrameShape(QFrame.Shape.HLine)
+        l.setFrameShadow(QFrame.Shadow.Sunken)
+        return l
+
+    main_layout.addWidget(create_line())
 
     # Contenuto centrale
-    label_title = QLabel(f"{lpak.get("Settings", language)}")
+    label_title = QLabel(f"{lpak.get('Settings', language)}")
     label_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-    label_user_data=QLabel(f"{lpak.get("Interface options", language)}")
+    label_user_data=QLabel(f"{lpak.get('Interface options', language)}")
     #languages
     label_language=QLabel(lpak.get("Language", language))
     menu_select_language = QComboBox()
@@ -134,42 +139,44 @@ def open_settings_page():
     else:
         button_setting_calendar.setText(lpak.get("Enable", language))
 
-      
     #Buttons
     def change_language():
         global config   
         new_language = menu_select_language.currentText()
         config.set("User data", "Language", new_language)
         write_settings()
-        notify.system_notification(f"{lpak.get("New language", new_language)}: {new_language}", f"{lpak.get("Language updated", new_language)}. {lpak.get("Please reboot", new_language)}")
+        notify.system_notification(f"{lpak.get('New language', new_language)}: {new_language}", f"{lpak.get('Language updated', new_language)}. {lpak.get('Please reboot', new_language)}")
 
     button_change_language = QPushButton(lpak.get("Apply language", language))
     button_change_language.pressed.connect(change_language)
 
-    
-
+    #reconfig button
+    def start_reconfig():
+        config_process.restart_configuration(use_gui=True)
+    button_edit_credential = QPushButton("Edit services credentials") 
+    button_edit_credential.pressed.connect(start_reconfig)
 
     data_widget = QGridLayout()
+    data_widget.setHorizontalSpacing(20) 
+    
     data_widget.addWidget(label_title, 0, 0, 1, 4)
+
     data_widget.addWidget(label_user_data, 1, 0, 1, 2)
     data_widget.addWidget(label_language, 2, 0, 1, 1)
-    data_widget.addWidget(menu_select_language, 2, 1,1,1)
-    data_widget.addWidget(button_change_language, 7, 0, 1, 2)
-    data_widget.addWidget(line, 3, 0, 1, 2)
+    data_widget.addWidget(menu_select_language, 2, 1, 1, 1)
+    data_widget.addWidget(create_line(), 3, 0, 1, 2)
 
     data_widget.addWidget(label_widget_title, 4, 0, 1, 2)
     data_widget.addWidget(label_music_widget, 5, 0, 1, 1)
     data_widget.addWidget(button_setting_music, 5, 1, 1, 1)    
     data_widget.addWidget(label_calendar_widget, 6, 0, 1, 1)
     data_widget.addWidget(button_setting_calendar, 6, 1, 1, 1)
-    data_widget.addWidget(line, 7, 0, 1, 2)
-
     
+    data_widget.addWidget(create_line(), 7, 0, 1, 2)
+    data_widget.addWidget(button_change_language, 8, 0, 1, 2)
 
-    ########SX PART, CUSTOM THINGS
-    #Custom widget
+
     label_title_custom_things=QLabel("Custom component")
-
     label_title_custom_widgets=QLabel("Custom label")
 
     def change_custom_widget_status(path, status, button):
@@ -181,51 +188,64 @@ def open_settings_page():
             with open(path+"/status.conf", "w") as f:
                 f.write("enable")
                 button.setText(lpak.get("Disable", language))
-        
-
 
     avaible_custom_widgets = []
     custom_widgets_path = f"{data_path}apps/UI"
-    for folder in os.listdir(custom_widgets_path):
-        folder_path = os.path.join(custom_widgets_path, folder)
-        if os.path.isdir(folder_path):
-            avaible_custom_widgets.append(folder)
-    avaible_custom_widgets.sort(key=str.lower)
-    print(avaible_custom_widgets)
+    
+    if os.path.exists(custom_widgets_path):
+        for folder in os.listdir(custom_widgets_path):
+            folder_path = os.path.join(custom_widgets_path, folder)
+            if os.path.isdir(folder_path):
+                avaible_custom_widgets.append(folder)
+        avaible_custom_widgets.sort(key=str.lower)
 
-    data_widget.addWidget(label_title_custom_things, 1, 3, 1, 2)
-    data_widget.addWidget(label_title_custom_widgets, 2, 3, 1, 1)
+    data_widget.addWidget(label_title_custom_things, 1, 2, 1, 2)
+    data_widget.addWidget(label_title_custom_widgets, 2, 2, 1, 2)
+    
     r = 3
     for plugin in avaible_custom_widgets:
         if plugin == "__init.py__" or plugin == "__pycache__":
             continue
-        with open(f"{custom_widgets_path}/{plugin}/manifest.json", "r") as f:
-            data = json.load(f)
-
-        name = data["name"]
+        try:
+            with open(f"{custom_widgets_path}/{plugin}/manifest.json", "r") as f:
+                data = json.load(f)
+            name = data["name"]
+        except Exception:
+            continue
 
         plugin_label=QLabel(name)
         plugin_button = QPushButton()
-        plugin_button.pressed.connect(lambda: change_custom_widget_status(custom_widgets_path+"/"+plugin, status, plugin_button))
+        
         if not os.path.isfile(f"{custom_widgets_path}/{plugin}/status.conf"):
             with open(f"{custom_widgets_path}/{plugin}/status.conf", "w") as f:
                 f.write("disable")
         with open(f"{custom_widgets_path}/{plugin}/status.conf", "r") as f:
             status = f.readline().strip().lower()
+            
+        plugin_button.pressed.connect(lambda checked=False, p=plugin, s=status, b=plugin_button: change_custom_widget_status(custom_widgets_path+"/"+p, s, b))
+        
         if setting_status(status):
             plugin_button.setText(lpak.get("Disable", language))
         else:
             plugin_button.setText(lpak.get("Enable", language))
-        
-        data_widget.addWidget(plugin_label, r, 3, 1, 1)
-        data_widget.addWidget(plugin_button, r, 4, 1, 1)
+
+        data_widget.addWidget(plugin_label, r, 2, 1, 1)
+        data_widget.addWidget(plugin_button, r, 3, 1, 1)
         r = r+1
 
+    bottom_row = max(9, r)
+
+    data_widget.addWidget(create_line(), bottom_row, 0, 1, 4)
+    data_widget.addWidget(button_edit_credential, bottom_row + 1, 0, 1, 4)
 
 
-
+    data_widget.setColumnStretch(0, 1)
+    data_widget.setColumnStretch(1, 1)
+    data_widget.setColumnStretch(2, 1)
+    data_widget.setColumnStretch(3, 1)
 
     main_layout.addLayout(data_widget)
+    main_layout.addStretch()
 
     settings_window.showMaximized()
     return settings_window
@@ -236,4 +256,3 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     open_settings_page()
     sys.exit(app.exec())
-
