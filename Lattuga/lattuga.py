@@ -21,6 +21,7 @@ config =configparser.ConfigParser()
 config.read(f"{data_path}config.conf")
 language = config.get("User data", "Language")
 language_code = get_language_code.get(language)
+ai_model = config.get("User data", "AI_model")
 
 
 #my
@@ -96,7 +97,7 @@ def Lattuga(prompt):
         return clean_dict
     
     response = ollama.chat(
-        model='ministral-3:14b-cloud',
+        model=ai_model,
         messages=messages,
         tools=tools
     )
@@ -140,7 +141,7 @@ def Lattuga(prompt):
             break
 
         response = ollama.chat(
-            model='ministral-3:14b-cloud',
+            model=ai_model,
             messages=messages,
             tools=tools
         )
