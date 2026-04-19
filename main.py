@@ -62,7 +62,7 @@ if command == "start":
         if not check_configuration():
             run_setup()
 
-        files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py"]
+        files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", "back_process/music_scrobbling.py"]
 
         processi = []
 

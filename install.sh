@@ -1,17 +1,13 @@
 #!/bin/bash
 
-# Funzione per configurare l'avvio automatico (systemd user)
-# Funzione per configurare systemd (creazione sempre, abilitazione opzionale)
 setup_autostart() {
     echo
     echo "========================================================================"
     echo " OpenHUB systemd service setup"
     echo "========================================================================"
 
-    # Crea la cartella per i servizi utente se non esiste
     mkdir -p ~/.config/systemd/user/
 
-    # Crea sempre il file del servizio
     cat <<EOF > ~/.config/systemd/user/openhub.service
 [Unit]
 Description=OpenHUB - Smart Home Dashboard
@@ -26,8 +22,6 @@ RestartSec=5
 [Install]
 WantedBy=default.target
 EOF
-
-    # Ricarica systemd
     systemctl --user daemon-reload
 
     echo "Service file created successfully."
@@ -88,12 +82,10 @@ if [[ "$action" == "1" ]]; then
         rm PKGBUILD
         echo "FINISHED!"        
     fi
-    #sudo rm /usr/share/open-hub-install/AUR
 
     cd ..
     rm -rf open-hub-install
     
-    # Richiama la configurazione systemd dopo l'installazione
     setup_autostart
 
 elif [[ "$action" == "2" ]]; then
@@ -101,7 +93,6 @@ elif [[ "$action" == "2" ]]; then
     echo
     echo "Uninstalling OpenHUB..."
     
-    # Ferma e disabilita il servizio se esiste prima di disinstallare
     systemctl --user stop openhub.service 2>/dev/null
     systemctl --user disable openhub.service 2>/dev/null
     rm -f ~/.config/systemd/user/openhub.service
@@ -126,8 +117,7 @@ elif [[ "$action" == "5" ]]; then
 
     cd ..
     sudo rm -rf open-hub-install
-    
-    # Richiama la configurazione systemd dopo l'installazione
+
     setup_autostart
 fi
 

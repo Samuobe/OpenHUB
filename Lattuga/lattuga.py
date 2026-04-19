@@ -45,7 +45,7 @@ else:
         {
             'role': 'system',
             'content': (
-                """You are Lattuga. The vocal assistant integrated in OpenHomeHUB, a project created by Oberti Samuele, author of 
+                """You are Lattuga. The vocal assistant integrated in OpenHUB, a project created by Oberti Samuele, author of 
                     Druid of Rats that made folk punk music. OpenHomeHUB is a project born for a competion, it want to be an open source replace 
                     to closed source project like amazon eco show and google nest hub.\n"""
                 "You musn't talk about you if it's not required by the user.\n"
@@ -132,7 +132,7 @@ def Lattuga(prompt):
                     tool_calls_handled = True
 
         if stop_requested:
-            print("🔇 No reply rrquired")
+            print("No reply required")
             messages.append({'role': 'assistant', 'content': '[Interrotto]'}) 
             save_messages()
             return ""    
@@ -184,7 +184,7 @@ def listen_for_keyword():
             if confidenza > 0.35:
                 activations_count += 1
                 if activations_count >= REQUIRED_FRAMES:
-                    print(f"✨ Keword confirmed after {activations_count} frame!")
+                    print(f"Keword confirmed after {activations_count} frame!")
                     return True
             else:
                 activations_count = 0 
