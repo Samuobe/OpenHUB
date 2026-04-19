@@ -48,7 +48,7 @@ CONFIG_SCHEMA = [
     },
     {
         "name": "Subsonic",
-        "keys": ["SUBSONIC_URL", "SUBSONIC_USERNAME", "SUBSONIC_PASSWORD", "ListenBrainz_key"],
+        "keys": ["subsonic_url", "subsonic_username", "subsonic_password", "ListenBrainz_key"],
         "optional": True
     }
 ]

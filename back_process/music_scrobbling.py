@@ -5,6 +5,7 @@ import json
 import configparser
 import os
 
+LISTENBRAINZ_TOKEN=None
 
 def get_current_metadata():
     try:
@@ -23,6 +24,7 @@ def get_current_metadata():
         return None
 
 def submit_listenbrainz(artist, title, listen_type="single"):
+    global LISTENBRAINZ_TOKEN
     if not LISTENBRAINZ_TOKEN or LISTENBRAINZ_TOKEN == "-":
         return
 
@@ -61,6 +63,7 @@ def submit_listenbrainz(artist, title, listen_type="single"):
 
 
 def scrobbler_loop():
+    global LISTENBRAINZ_TOKEN
     last_played_song = None
     old_artist = None
     old_title = None
