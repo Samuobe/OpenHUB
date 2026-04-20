@@ -8,7 +8,13 @@ import os
 LISTENBRAINZ_TOKEN=None
 
 def get_current_metadata():
+    ALLOWED_PLAYERS = ["vlc", "mpv"]
     try:
+        player_name = subprocess.check_output(['playerctl', 'metadata', '--format', '{{playerName}}'], stderr=subprocess.DEVNULL, text=True).strip().lower()
+        
+        if not any(allowed in player_name for allowed in ALLOWED_PLAYERS):
+            return None
+
         status = subprocess.check_output(['playerctl', 'status'], stderr=subprocess.DEVNULL, text=True).strip().lower()
         if status != "playing":
             return None
@@ -36,7 +42,6 @@ def submit_listenbrainz(artist, title, listen_type="single"):
 
     artist_name = artist if artist else "Unknown Artist"
 
-    # Creiamo prima l'oggetto payload base senza listened_at
     payload_item = {
         "track_metadata": {
             "artist_name": artist_name,

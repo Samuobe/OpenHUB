@@ -219,8 +219,12 @@ class CoverWorker(QThread):
 class VoiceWorker(QThread):
     finished = pyqtSignal(str)
     def run(self):
-        prompt = voice_input(turn_down_volume=True)
-        self.finished.emit(prompt if prompt else "")
+        try:
+            prompt = voice_input(turn_down_volume=True)
+            self.finished.emit(prompt if prompt else "")
+        except:
+            status_label.setText("Error, microphone not found!!")
+
 
 class AIWorker(QThread):
     finished = pyqtSignal(str)
@@ -787,11 +791,17 @@ def play_song_command(action):
         else: 
             os.system("playerctl pause")
 def turn_up_volume():
-    original_volume = mixer.getvolume()[0]
-    mixer.setvolume(original_volume+ 5)
+    try:
+        original_volume = mixer.getvolume()[0]
+        mixer.setvolume(original_volume+ 5)
+    except:
+        pass
 def turn_down_volume():
-    original_volume = mixer.getvolume()[0]
-    mixer.setvolume(original_volume- 5)
+    try:
+        original_volume = mixer.getvolume()[0]
+        mixer.setvolume(original_volume- 5)
+    except:
+        pass
 
 def create_music_widget():
     global music_container, music_artist, music_title, music_title_label, music_album, music_play_button, music_cover_label
