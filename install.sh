@@ -53,7 +53,11 @@ EOF
     echo
 }
 
-
+common_setup(){
+    setup_autostart
+    systemctl --user enable blueman-applet.service
+    systemctl --user start blueman-applet.service
+}
 
 echo "Welcome to the OpenHUB installation program!"
 echo "What do you want to do?"
@@ -87,7 +91,9 @@ if [[ "$action" == "1" ]]; then
     cd ..
     rm -rf open-hub-install
     
-    setup_autostart
+    common_setup
+
+    
 
 elif [[ "$action" == "2" ]]; then
     echo
@@ -118,7 +124,7 @@ elif [[ "$action" == "5" ]]; then
     cd ..
     sudo rm -rf open-hub-install
 
-    setup_autostart
+    common_setup
 fi
 
 rm -- "$0"
