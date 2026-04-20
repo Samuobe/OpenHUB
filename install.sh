@@ -11,13 +11,15 @@ setup_autostart() {
     cat <<EOF > ~/.config/systemd/user/openhub.service
 [Unit]
 Description=OpenHUB - Smart Home Dashboard
-After=network.target
+After=network.target graphical-session.target
+Wants=graphical-session.target
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/open-hub start station
 Restart=on-failure
 RestartSec=5
+Environment=DISPLAY=:0
 
 [Install]
 WantedBy=default.target
@@ -60,7 +62,7 @@ echo "2) Uninstall OpenHUB"
 read -p "Select an option [1/2/5]: " action
 
 if [[ "$action" == "1" ]]; then
-    mkdir open-hub-install
+    mkdir -p open-hub-install
     cd open-hub-install
 
     PYTHON_PATH=$(which python3)
@@ -70,15 +72,14 @@ if [[ "$action" == "1" ]]; then
 
     if [[ "$choice" =~ ^[Yy]$ ]]; then
         echo "Installing OpenHUB stable..."
-        wget https://raw.githubusercontent.com/samuobe/OpenHUB/main/PKGBUILD/PKGBUILD
-        makepkg -si
+        wget -O PKGBUILD https://raw.githubusercontent.com/samuobe/OpenHUB/main/PKGBUILD/PKGBUILD
+        makepkg -sif
         rm PKGBUILD
         echo "FINISHED!"       
     else
         echo "Installing OpenHUB from main branch (beta)..."       
-        wget https://raw.githubusercontent.com/samuobe/OpenHUB/main/PKGBUILD/PKGBUILD-git
-        mv PKGBUILD-git PKGBUILD
-        makepkg -si        
+        wget -O PKGBUILD https://raw.githubusercontent.com/samuobe/OpenHUB/main/PKGBUILD/PKGBUILD-git
+        makepkg -sif        
         rm PKGBUILD
         echo "FINISHED!"        
     fi
@@ -98,21 +99,20 @@ elif [[ "$action" == "2" ]]; then
     rm -f ~/.config/systemd/user/openhub.service
     systemctl --user daemon-reload
     
-    sudo pacman -Rns open-hub
-    sudo pacman -Rns open-hub-git
-    sudo pacman -Rns open-hub-git-dev
+    sudo pacman -Rns open-hub 2>/dev/null
+    sudo pacman -Rns open-hub-git 2>/dev/null
+    sudo pacman -Rns open-hub-git-dev 2>/dev/null
     echo "FINISHED!"
 elif [[ "$action" == "5" ]]; then
-    mkdir open-hub-install
+    mkdir -p open-hub-install
     cd open-hub-install
     PYTHON_PATH=$(which python3)
 
     echo "Installing OpenHUB DEV branch..."
-    wget https://raw.githubusercontent.com/samuobe/OpenHUB/main/PKGBUILD/PKGBUILD-dev
-    mv PKGBUILD-dev PKGBUILD
-    makepkg -si
+    wget -O PKGBUILD https://raw.githubusercontent.com/samuobe/OpenHUB/main/PKGBUILD/PKGBUILD-dev
+    makepkg -sif
     rm PKGBUILD
-    rm /usr/share/arch-store/AUR
+    sudo rm -f /usr/share/arch-store/AUR 2>/dev/null
     echo "FINISHED!" 
 
     cd ..
