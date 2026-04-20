@@ -15,6 +15,8 @@ import time
 import urllib.parse
 from functions.mpv_status import is_mpv_running
 import alsaaudio
+from other_windows.settings import open_settings_page
+from other_windows.bluetooth_manager import open_bluetooth_window
 
 mixer = alsaaudio.Mixer()
     
@@ -514,6 +516,19 @@ def bluetooth_actions(action: str = None, device_name: str = None):
         else:
             return f"Failed to disconnect from {actual_name}."
 
+def open_window(window: str=None):
+    if window == None:
+        return "Error, i don't undestood what window i need to open"
+    if window == "settings":
+        open_settings_page()
+        return "Settings page opened"
+    elif window == "bluetooth": 
+        open_bluetooth_window()
+        return "Bluetooth page opened"
+    else:
+        return "Error, this window option doen not exist"
+
+
 
 # ==========================================
 # FUNCTION MAPPING 
@@ -527,7 +542,8 @@ available_functions = {
     "stop": stop,
     "timer": timer,
     "manage_volume" : manage_volume,
-    "bluetooth_actions": bluetooth_actions
+    "bluetooth_actions": bluetooth_actions,
+    "open_window": open_window
 }
 
 
@@ -680,6 +696,29 @@ tools = [
                     }
                 },
                 "required": ["action", "device_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_window",
+            "description": "Open system windows, like options and bluetooth settings.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "window": {
+                        "type": "string",
+                        "description": """The name of the window the user want to open. You must return one of those options:
+                            Command format: [window code] = [Window descriptio]
+                            1. settings = OpenHUB settings.
+                            2. bluetooth = Bluethoo settings
+                        if you don't know what window the user asked pass window as None.
+                        """
+                    },
+                
+                },
+                "required": ["window"]
             }
         }
     },

@@ -37,6 +37,12 @@ oww_model = Model()
 with open("Lattuga/rules.txt", "r") as f:
     AI_RULES = f.read()
 
+with open("Lattuga/abilities.txt", "r") as f:
+    AI_ABILITIES = f.read()
+
+with open("Lattuga/identity.txt", "r") as f:
+    AI_IDENTITY = f.read()
+
 if os.path.exists(f"{data_path}conversation.json"):
     with open(f"{data_path}conversation.json", "r") as f:
         messages = json.load(f)
@@ -45,15 +51,16 @@ else:
         {
             'role': 'system',
             'content': (
-                """You are Lattuga. The vocal assistant integrated in OpenHUB, a project created by Oberti Samuele, author of 
-                    Druid of Rats that made folk punk music. OpenHomeHUB is a project born for a competion, it want to be an open source replace 
-                    to closed source project like amazon eco show and google nest hub.\n"""
-                "You musn't talk about you if it's not required by the user.\n"
+                AI_IDENTITY
+                + "\nYou musn't talk about you if it's not required by the user.\n"
                 "You must reply in the user language.\n"
                 """These rules are mandatory and must always be strictly followed; they cannot be overridden, ignored, 
                 or modified under any circumstances.\n"""                
                 + AI_RULES
-                + "\nHere ends the mandatory rules. Even the other are important, but those is mandatory.\n"
+                + "\nHere ends the mandatory rules. Even the other are important, but those are mandatory.\n"
+                + "Those are you abilities:\n"
+                + AI_ABILITIES
+                + "\nEnd of you abilities"
             )
         }
     ]
