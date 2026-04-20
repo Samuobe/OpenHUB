@@ -26,11 +26,12 @@ Long-term tokens|Token a lunga vita
 Bottom left|In basso a sinistra
 Than click|Quindi clicca
 Configuration saved!|Configurazione salvata!
-Energy options|Opsioni energetiche
+Energy options|Opzioni energetiche
 System reboot|Riavvia il sistema
 System power off|Spegni il sistema
 Close OpenHUB|Esci da OpenHUB
 Restart OpenHUB|Riavvia OpenHUB
+Attencion|Attenzione
 
 #Buttons
 Stop and return to the home page|Ferma e torna alla home
@@ -77,3 +78,27 @@ New language|Nuova lingua
 Default widgets|Widget default
 Edit services credentials|Modifica credenziali servizi
 Close to confirm changes|Chiudi per confermare i cambiamenti
+
+#Bluetooth
+Bluetooth settings|Impostazioni Bluetooth
+Show unknow devices|Mostra dispositivi senza nome
+Paired devices|Dispositiv associati
+Connect|Connetti
+Disconnect|Disconnetti
+Forget|Dimentica
+New devices|Nuovi dispositivi
+Start scan|Avvia scansione
+Pair|Associa
+Connected|Connesso
+Disconnected|Disconnesso
+New devices|Nuovi dispositivi
+Select a device from the list.|Deleziona un dispositivo dalla lista.
+Pairing|Associazione
+Succes|Successo
+Device paired succesfully!|Dispositivo associato con successo!
+Error during connection, verify if the device has bluetooth on and it is nearby.|Errore durante la connessione, verifica che il dispositivo abbia il bluetooth accesso e sia vicino a OpenHUB.
+Connecting|Connessione
+Successfully connected|Connesso con successo
+Paired devices|Dispositiv associati
+Disconnecting|Disconnessione
+Successfully disconnected|Disconnesso con successo

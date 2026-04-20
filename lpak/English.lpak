@@ -31,6 +31,7 @@ System reboot|System reboot
 System power off|System poweroff
 Close OpenHUB|Close OpenHUB
 Restart OpenHUB|Restart OpenHUB
+Attencion|Attenction
 
 #Buttons
 Stop and return to the home page|Stop and return to the home page
@@ -77,3 +78,27 @@ New language|New language
 Default widgets|Default widgets
 Edit services credentials|Edit services credentials
 Close to confirm changes|Close to confirm changes
+
+#Bluetooth
+Bluetooth settings|Bluetooth settings
+Show unknow devices|Show unknow devices
+Paired devices|Paired devices
+Connect|Connect
+Disconnect|Disconnect
+Forget|Forget
+New devices|New devices
+Start scan|Start scan
+Pair|Pair
+Connected|Connected
+Disconnected|Disconnected
+New devices|New devices
+Select a device from the list.|Select a device from the list.
+Pairing|Pairing
+Succes|Succes
+Device paired succesfully!|Device paired succesfully!
+Error during connection, verify if the device has bluetooth on and it is nearby.|Error during connection, verify if the device has bluetooth on and it is nearby.
+Connecting|Connecting
+Successfully connected|Successfully connected
+Paired devices|Paired devices
+Disconnecting|Disconnecting
+Successfully disconnected|Successfully disconnected

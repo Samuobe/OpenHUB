@@ -3,9 +3,7 @@ from caldav import DAVClient
 import requests
 import datetime
 import subprocess
-import datetime
 from dateutil import rrule
-import requests
 import vlc
 import hashlib
 import random
@@ -13,6 +11,7 @@ import string
 import difflib
 import os
 import signal
+import time
 import urllib.parse
 from functions.mpv_status import is_mpv_running
 import alsaaudio
@@ -77,7 +76,6 @@ def stop():
 def manage_music(action: str = None, song_name: str = None):
     global player
     
-    # 1. PULIZIA DELL'AZIONE DELL'IA
     if action:
         action = action.lower().strip()
         if "next" in action: action = "next"
@@ -85,7 +83,6 @@ def manage_music(action: str = None, song_name: str = None):
         if "pause" in action: action = "pause"
         if "play" in action: action = "play"
 
-    # 2. ESECUZIONE
     if action in ["pause", "play", "previous", "next"]:
         print("RICHIESTA MUSIC=", action)
         if is_mpv_running():
@@ -118,7 +115,6 @@ def manage_music(action: str = None, song_name: str = None):
                 "f": "json"
             }
 
-        # NUOVA FUNZIONE: Accetta una LISTA di url invece di uno solo
         def play_urls(urls, title=""):
             pid_file = "operations_data/music_pid.txt"
             playlist_file = "operations_data/playlist.m3u"
@@ -159,7 +155,7 @@ def manage_music(action: str = None, song_name: str = None):
 
         def random_song():
             params = get_auth()
-            params["size"] = 20 # Mette 20 canzoni in coda!
+            params["size"] = 20 #SIZE OF MUSIC LIST
             r = requests.get(f"{subsonic_url}/rest/getRandomSongs.view", params=params).json()
             songs = r["subsonic-response"]["randomSongs"].get("song", [])
             
@@ -179,13 +175,12 @@ def manage_music(action: str = None, song_name: str = None):
             result = r["subsonic-response"].get("searchResult3", {})
 
             songs = result.get("song", [])
-            albums = result.get("album", [])     # <--- ORA LEGGIAMO ANCHE GLI ALBUM!
+            albums = result.get("album", [])    
             artists = result.get("artist", [])
             playlists = result.get("playlist", [])
 
             query_lower = query.lower().strip()
 
-            # 1. CONTROLLO ALBUM (Se trova un album, carica tutta la sua tracklist)
             for album in albums:
                 album_name = album.get("title", album.get("name", ""))
                 if album_name.lower() == query_lower or query_lower in album_name.lower():
@@ -199,7 +194,6 @@ def manage_music(action: str = None, song_name: str = None):
                         play_urls(urls, f"Album: {album_name}")
                         return f"I'm playing the entire album {album_name}"
 
-            # 2. CONTROLLO PLAYLIST
             for playlist in playlists:
                 playlist_name = playlist.get("name", playlist.get("title", ""))
                 if playlist_name.lower() == query_lower or query_lower in playlist_name.lower():
@@ -213,12 +207,10 @@ def manage_music(action: str = None, song_name: str = None):
                         play_urls(urls, f"Playlist: {playlist_name}")
                         return f"I'm playing the playlist {playlist_name}"
 
-            # 3. CONTROLLO BRANO SINGOLO (Riproduce il brano + 20 brani casuali a seguire)
             for song in songs:
                 if song["title"].lower() == query_lower or query_lower in song["title"].lower():
                     urls = [stream_url(song["id"])]
                     
-                    # Generiamo altre 20 canzoni casuali in coda
                     params_rnd = get_auth()
                     params_rnd["size"] = 20
                     r_rand = requests.get(f"{subsonic_url}/rest/getRandomSongs.view", params=params_rnd).json()
@@ -229,7 +221,6 @@ def manage_music(action: str = None, song_name: str = None):
                     play_urls(urls, song["title"])
                     return f"I'm playing the song {song['title']} followed by a random mix"
 
-            # 4. CONTROLLO ARTISTA (Carica i brani dei suoi album)
             for artist in artists:
                 artist_name = artist.get("name", "")
                 if artist_name.lower() == query_lower or query_lower in artist_name.lower():
@@ -245,13 +236,12 @@ def manage_music(action: str = None, song_name: str = None):
                         r_alb = requests.get(f"{subsonic_url}/rest/getAlbum.view", params=params_alb).json()
                         for s in r_alb["subsonic-response"]["album"].get("song", []):
                             urls.append(stream_url(s["id"]))
-                        if len(urls) > 50: # Evitiamo code infinite oltre i 50 brani
+                        if len(urls) > 50: #Music list
                             break
                     if urls:
                         play_urls(urls, f"Artista: {artist_name}")
                         return f"I'm playing songs by {artist_name}"
 
-            # 5. NIENTE TROVATO (Compila le liste per l'LLM)
             available_albums = [a.get("title", a.get("name", "")) for a in albums][:5]
             available_songs = [s["title"] for s in songs][:10]
             available_artists = [a["name"] for a in artists][:5]
@@ -376,10 +366,10 @@ def home_assistant(action: int, device_input: str):
         if device_input.lower() in eid.lower():
             requested_device = {"entity_id": eid, "state": state}
 
-    if action == 0:  # solo stato
+    if action == 0: 
         return {"requested_device": requested_device}
 
-    if action in [1, 2]:  # accendi o spegni
+    if action in [1, 2]:  
         if not requested_device:
             print(f"❌ Device non trovato: {device_input}")
             return None
@@ -451,10 +441,82 @@ def manage_volume(action: str = None, volume: int = None):
     else:
         return f"Segnalate this error: Invalid volume_mange action: {action}"
     
+def get_backend_paired_devices():
+    devices = []
+    result = subprocess.run(["bluetoothctl", "devices"], capture_output=True, text=True)
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if line.startswith("Device"):
+            parts = line.split(" ", 2)
+            if len(parts) >= 2:
+                mac = parts[1].strip().upper()
+                name = parts[2].strip() if len(parts) > 2 else "Sconosciuto"
+                info_text = subprocess.run(["bluetoothctl", "info", mac], capture_output=True, text=True).stdout
+                if "Paired: yes" in info_text:
+                    is_connected = "Connected: yes" in info_text
+                    devices.append({"name": name, "mac": mac, "connected": is_connected})
+    return devices
+
+def bluetooth_actions(action: str = None, device_name: str = None):
+    action = action.lower().strip() if action else ""
+    
+    if action not in ["connect", "disconnect"]:
+        return "Error, no valid action specified. Use 'connect' or 'disconnect'."
+    if not device_name:
+        return "Error, no device specified."
+        
+    devices = get_backend_paired_devices()
+
+    if not devices:
+        return "No paired Bluetooth devices found on this system. Pair a device from settings first."
+
+    device_names = [d['name'] for d in devices]
+    device_name_lower = device_name.lower().strip()
+
+    target_device = None
+    for d in devices:
+        if d['name'].lower().strip() == device_name_lower:
+            target_device = d
+            break
+            
+    if not target_device:
+        for d in devices:
+            if device_name_lower in d['name'].lower():
+                target_device = d
+                break
+
+    if not target_device:
+        response_text = (
+            f"No EXACT match found for '{device_name}'. Available paired devices are: {device_names}. "
+            "Please analyze this list considering possible speech-to-text spelling errors. "
+            "Pick the most likely match and call this tool AGAIN using that EXACT name."
+        )
+        return response_text
+
+    mac = target_device['mac']
+    actual_name = target_device['name']
+
+    if action == "connect":
+        subprocess.run(["bluetoothctl", "connect", mac], capture_output=True)
+        time.sleep(1.5)
+        info_text = subprocess.run(["bluetoothctl", "info", mac], capture_output=True, text=True).stdout
+        if "Connected: yes" in info_text:
+            return f"Successfully connected to Bluetooth device {actual_name}."
+        else:
+            return f"Failed to connect to {actual_name}. Tell the user to make sure the device is turned on and nearby."
+            
+    elif action == "disconnect":
+        subprocess.run(["bluetoothctl", "disconnect", mac], capture_output=True)
+        time.sleep(1.5)
+        info_text = subprocess.run(["bluetoothctl", "info", mac], capture_output=True, text=True).stdout
+        if "Connected: yes" not in info_text:
+            return f"Successfully disconnected from Bluetooth device {actual_name}."
+        else:
+            return f"Failed to disconnect from {actual_name}."
 
 
 # ==========================================
-# MAPPATURA FUNZIONI (per esecuzione)
+# FUNCTION MAPPING 
 # ==========================================
 
 available_functions = {
@@ -464,12 +526,13 @@ available_functions = {
     "home_assistant": home_assistant,
     "stop": stop,
     "timer": timer,
-    "manage_volume" : manage_volume
+    "manage_volume" : manage_volume,
+    "bluetooth_actions": bluetooth_actions
 }
 
 
 # ==========================================
-# TOOLS DEFINITIONS (CORRETTO)
+# TOOLS DEFINITIONS 
 # ==========================================
 
 tools = [
@@ -596,6 +659,27 @@ tools = [
                     }
                 },
                 "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "bluetooth_actions",
+            "description": "Connects or disconnects a paired Bluetooth device (like speakers, headphones, phones).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "description": "'connect' to connect a device, 'disconnect' to disconnect."
+                    },
+                    "device_name": {
+                        "type": "string",
+                        "description": "You must follow BLUETOOTH_ACTIONS rules."
+                    }
+                },
+                "required": ["action", "device_name"]
             }
         }
     },

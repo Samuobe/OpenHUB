@@ -589,6 +589,7 @@ import importlib
 import json
 from other_windows.settings import open_settings_page
 from PyQt6.QtGui import QAction
+from other_windows.bluetooth_manager import open_bluetooth_window
 
 
 mixer = alsaaudio.Mixer()
@@ -658,8 +659,15 @@ def show_energy_popup():
     btn_shutdown.clicked.connect(lambda: os.system("systemctl poweroff"))
     btn_restart.clicked.connect(lambda: os.system("systemctl reboot"))
     btn_close.clicked.connect(dialog.close)
-    btn_close_openhub.clicked.connect(lambda: os.system("systemctl --user stop openhub.service"))
-    btn_restart_openhub.clicked.connect(lambda: os.system("systemctl --user restart openhub.service "))
+    def close_openhub():
+        os.system("systemctl --user stop openhub.service")
+        exit()
+    def restart_openhub():
+        os.system("systemctl --user restart openhub.service ")
+        exit()
+
+    btn_close_openhub.clicked.connect(close_openhub)
+    btn_restart_openhub.clicked.connect(restart_openhub)
 
     layout.addWidget(btn_restart_openhub)
     layout.addWidget(btn_close_openhub)
@@ -720,6 +728,7 @@ dropdown_menu.setStyleSheet("""
     }
 """)
 
+action_bluetooth_settings = QAction(f">ᛒ {lpak.get("Bluetooth settings", language)}")
 action_settings = QAction(f"⚙️ {lpak.get("Settings", language)}", menu_button) 
 action_store = QAction("🏪 Store", menu_button)
 action_energy_options = QAction(f"🔋 {lpak.get("Energy options", language)}", menu_button)
@@ -727,7 +736,9 @@ action_energy_options = QAction(f"🔋 {lpak.get("Energy options", language)}", 
 action_settings.triggered.connect(open_settings_page)
 #action_store.triggered.connect(open_store_page)
 action_energy_options.triggered.connect(show_energy_popup)
+action_bluetooth_settings.triggered.connect(lambda: open_bluetooth_window())
 
+dropdown_menu.addAction(action_bluetooth_settings)
 dropdown_menu.addAction(action_settings)
 #dropdown_menu.addAction(action_store)
 dropdown_menu.addAction(action_energy_options)
