@@ -62,16 +62,18 @@ if command == "start":
         if not check_configuration():
             run_setup()
 
+        processi = []
+        
+        # --- AVVIO MPRIS-PROXY PER IL BLUETOOTH ---
         try:
             p_mpris = subprocess.Popen(["mpris-proxy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             processi.append(p_mpris)
             print(f"Started mpris-proxy with PID: {p_mpris.pid}")
         except FileNotFoundError:
             print("Warning: mpris-proxy not found. Bluetooth media info will not work.")
-            
-        files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", "back_process/music_scrobbling.py"]
 
-        processi = []
+        # --- AVVIO SCRIPT PYTHON ---
+        files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", "back_process/music_scrobbling.py"]
 
         for file in files:
             file_path = os.path.join(script_dir, file)
@@ -88,9 +90,16 @@ if command == "start":
                 p.terminate() 
                 
     elif specific == "core":
-        files = ["back_process/music.py", "back_process/clock.py", "back_process/api.py"]
-
         processi = []
+
+        try:
+            p_mpris = subprocess.Popen(["mpris-proxy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            processi.append(p_mpris)
+            print(f"Started mpris-proxy with PID: {p_mpris.pid}")
+        except FileNotFoundError:
+            print("Warning: mpris-proxy not found. Bluetooth media info will not work.")
+
+        files = ["back_process/music.py", "back_process/clock.py", "back_process/api.py"]
 
         for file in files:
             file_path = os.path.join(script_dir, file)
