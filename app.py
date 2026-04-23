@@ -292,6 +292,15 @@ class TTSManager(QObject):
 tts = TTSManager()
 current_popup = None
 
+def verify_actions(response):
+    if my_tools.window_to_open == "settings":
+        open_settings_page()
+        my_tools.window_to_open = None 
+    elif my_tools.window_to_open == "bluetooth":
+        open_bluetooth_window()
+        my_tools.window_to_open = None
+    return response
+
 def ask_ai():
     global voice_worker
     if 'voice_worker' in globals() and voice_worker is not None and voice_worker.isRunning():
@@ -320,12 +329,15 @@ def ask_ai():
         ai_worker = AIWorker(prompt)
         
         def handle_ai_result(response):
+            
+            response = verify_actions(response)
+            
             response = response.replace("*", "").replace("\n", " ")
             if len(response) < 200:
                 status_label.setText(response)
                 tts.say(response)
             else:
-                status_label.setText(f"✅ {lpak.get("Answer provided", language)}")
+                status_label.setText(f"✅ {lpak.get('Answer provided', language)}")
                 show_big_advice(response) 
             
             def restart():
@@ -594,6 +606,8 @@ import json
 from other_windows.settings import open_settings_page
 from PyQt6.QtGui import QAction
 from other_windows.bluetooth_manager import open_bluetooth_window
+import Lattuga.tools as my_tools
+
 
 
 mixer = alsaaudio.Mixer()

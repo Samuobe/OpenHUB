@@ -17,6 +17,7 @@ from functions.mpv_status import is_mpv_running
 import alsaaudio
 from other_windows.settings import open_settings_page
 from other_windows.bluetooth_manager import open_bluetooth_window
+from PyQt6.QtCore import QTimer
 
 mixer = alsaaudio.Mixer()
     
@@ -516,15 +517,23 @@ def bluetooth_actions(action: str = None, device_name: str = None):
         else:
             return f"Failed to disconnect from {actual_name}."
 
+# Aggiungi questa variabile fuori dalle funzioni
+window_to_open = None
+
 def open_window(window: str=None):
+    global window_to_open
+    
     if window == None:
         return "Error, i don't undestood what window i need to open"
+        
     if window == "settings":
-        open_settings_page()
-        return "Settings page opened"
+        window_to_open = "settings"
+        return "Tells the user that the Settings page is opening."
+        
     elif window == "bluetooth": 
-        open_bluetooth_window()
-        return "Bluetooth page opened"
+        window_to_open = "bluetooth"
+        return "Tells the user that the Bluetooth page is opening."
+        
     else:
         return "Error, this window option doen not exist"
 
