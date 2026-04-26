@@ -47,12 +47,14 @@ def start_cd():
     time.sleep(0.5)
     
     cmd = [
-        "mpv",
-        "--no-video",
-        "cdda://", 
-        "--cdrom-device=/dev/sr0"
+        "cvlc",
+        "cdda://",
+        "--cdrom-device=/dev/sr0",
+        "-I", "telnet",
+        "--telnet-password=ciao",
+        "--telnet-port=4212",
+        "--extraintf=mpris"
     ]
-    vlc_cd_process = subprocess.Popen(cmd)
     vlc_cd_process = subprocess.Popen(cmd)
     send_notify("CD in reproduction")
 
