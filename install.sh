@@ -76,10 +76,18 @@ write_info_file() {
 
 install_standard() {
     echo "Installing OpenHUB locally for the current user..."
+    
     echo
-    read -p "Do you want to install the STABLE version (latest GitHub release) instead of PREVIEW (main branch)? (y/n): " is_stable
-
+    read -p "Do you want to install the STABLE version instead of PREVIEW (main)? (y/n): " is_stable
+    
+    local branch_name="main"
     local type_string="main"
+    
+    if [[ "$is_stable" =~ ^[Yy]$ ]]; then
+        branch_name="stable"
+        type_string="stable"
+    fi
+
     echo
     read -p "Enter installation directory (Default: $DEFAULT_INSTALL_DIR): " user_dir
     
@@ -91,6 +99,7 @@ install_standard() {
         fi
         INSTALL_DIR="$user_dir"
     fi
+
     local INFO_DIR="$INSTALL_DIR/info"
 
     if [ ! -d "$INSTALL_DIR" ]; then
@@ -105,84 +114,31 @@ install_standard() {
             sudo chown -R "$USER:$USER" "$INSTALL_DIR"
         fi
     fi
+
     mkdir -p "$BIN_DIR"
 
-    if [[ "$is_stable" =~ ^[Yy]$ ]]; then
-        # === STABLE: SCARICA RELEASE ===
-        type_string="stable"
-        echo "Downloading latest stable release from GitHub..."
-
-        # Recupera dati ultima release
-        release_data=$(curl -s https://api.github.com/repos/samuobe/OpenHUB/releases/latest)
-        release_url=$(echo "$release_data" | grep "browser_download_url" | grep -E '\.zip"|\.tar\.gz"' | head -1 | cut -d '"' -f4)
-        release_version=$(echo "$release_data" | grep '"tag_name":' | cut -d '"' -f4)
-
-        if [[ -z "$release_url" || -z "$release_version" ]]; then
-            echo "Error: Could not determine latest release version or download URL."
-            exit 1
-        fi
-        echo "Latest release: $release_version ($release_url)"
-
-        temp_dir=$(mktemp -d)
-        archive_file="$temp_dir/openhub_release.$(basename "$release_url")"
-        curl -L "$release_url" -o "$archive_file"
-
-        # Pulisci dir di installazione (tranne BIN locale se coincide)
-        if [ -d "$INSTALL_DIR" ]; then
-            find "$INSTALL_DIR" -mindepth 1 -not -path "$INFO_DIR" -exec rm -rf {} +
-        fi
-
-        # Estrai
-        if [[ "$release_url" =~ \.zip$ ]]; then
-            unzip -q "$archive_file" -d "$temp_dir/unzipped"
-            # Trova la prima cartella estratta
-            top_dir=$(find "$temp_dir/unzipped" -mindepth 1 -maxdepth 1 -type d | head -1)
-            cp -r "$top_dir"/* "$INSTALL_DIR/"
-        else
-            tar --strip-components=1 -xzf "$archive_file" -C "$INSTALL_DIR"
-        fi
-
-        rm -rf "$temp_dir"
-
-        write_info_file "$type_string" "$INFO_DIR"
-
-        # Crea wrapper eseguibile locale
-        cat <<EOF > "$LOCAL_BIN"
-#!/bin/bash
-cd "$INSTALL_DIR"
-python3 main.py "\$@"
-EOF
-        chmod +x "$LOCAL_BIN"
-
-        echo "OpenHUB STABLE version installed: $release_version"
+    if [ -d "$INSTALL_DIR/.git" ]; then
+        echo "Updating existing OpenHUB repository in $INSTALL_DIR..."
+        cd "$INSTALL_DIR" || exit
+        git fetch --all
+        git checkout "$branch_name"
+        git pull origin "$branch_name"
     else
-        # === MAIN PREVIEW, GIT CLONE ===
-        if [ -d "$INSTALL_DIR/.git" ]; then
-            echo "Updating existing OpenHUB repository in $INSTALL_DIR..."
-            cd "$INSTALL_DIR" || exit
-            git fetch --all
-            git checkout main
-            git pull origin main
-        else
-            echo "Cloning OpenHUB repository (main branch) into $INSTALL_DIR..."
-            git clone -b main https://github.com/samuobe/OpenHUB.git "$INSTALL_DIR"
-        fi
-
-        write_info_file "$type_string" "$INFO_DIR"
-
-        cat <<EOF > "$LOCAL_BIN"
-#!/bin/bash
-cd "$INSTALL_DIR"
-python3 main.py "\$@"
-EOF
-        chmod +x "$LOCAL_BIN"
-
-
-        cd "$INSTALL_DIR"
-        commit_version=$(git rev-parse --short HEAD)
-        echo "OpenHUB PREVIEW (main) version: $commit_version"
+        echo "Cloning OpenHUB repository (Branch: $branch_name) into $INSTALL_DIR..."
+        git clone -b "$branch_name" https://github.com/samuobe/OpenHUB.git "$INSTALL_DIR"
     fi
 
+    write_info_file "$type_string" "$INFO_DIR"
+
+    cat <<EOF > "$LOCAL_BIN"
+#!/bin/bash
+cd "$INSTALL_DIR"
+python3 main.py "\$@"
+EOF
+    chmod +x "$LOCAL_BIN"
+
+    echo "Local installation finished! Executable created at $LOCAL_BIN"
+    
     if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
         echo "WARNING: $BIN_DIR is not in your PATH. Please add it to your ~/.bashrc or ~/.zshrc."
     fi
