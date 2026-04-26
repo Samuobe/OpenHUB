@@ -59,6 +59,70 @@ EOF
     echo
 }
 
+install_dev() {
+    echo "Installing OpenHUB DEV version (dev branch)..."
+    echo
+
+    local INSTALL_TYPE="dev"
+
+    read -p "Enter installation directory (Default: $DEFAULT_INSTALL_DIR): " user_dir
+    local INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+    if [[ -n "$user_dir" ]]; then
+        user_dir="${user_dir/#\~/$HOME}"
+        if [[ "$user_dir" != /* ]]; then
+            user_dir="$PWD/$user_dir"
+        fi
+        INSTALL_DIR="$user_dir"
+    fi
+
+    local INFO_DIR="$INSTALL_DIR/info"
+
+    if [ ! -d "$INSTALL_DIR" ]; then
+        if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+            echo "Requires root privileges to create directory '$INSTALL_DIR'..."
+            sudo mkdir -p "$INSTALL_DIR"
+            sudo chown -R "$USER:$USER" "$INSTALL_DIR"
+        fi
+    else
+        if [ ! -w "$INSTALL_DIR" ]; then
+            echo "Requires root privileges to gain write access to '$INSTALL_DIR'..."
+            sudo chown -R "$USER:$USER" "$INSTALL_DIR"
+        fi
+    fi
+
+    mkdir -p "$BIN_DIR"
+
+    if [ -d "$INSTALL_DIR/.git" ]; then
+        echo "Updating existing OpenHUB DEV repository..."
+        cd "$INSTALL_DIR" || exit
+        git fetch --all
+        git checkout dev
+        git pull origin dev
+    else
+        echo "Cloning OpenHUB repository (dev branch)..."
+        git clone -b dev https://github.com/samuobe/OpenHUB.git "$INSTALL_DIR"
+    fi
+
+    write_info_file "$INSTALL_TYPE" "$INFO_DIR"
+
+    cat <<EOF > "$LOCAL_BIN"
+#!/bin/bash
+cd "$INSTALL_DIR"
+python3 main.py "\$@"
+EOF
+    chmod +x "$LOCAL_BIN"
+
+    cd "$INSTALL_DIR"
+    COMMIT_VERSION=$(git rev-parse --short HEAD 2>/dev/null || echo "NO_GIT")
+    echo "OpenHUB DEV version: $COMMIT_VERSION"
+
+    if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+        echo "WARNING: $BIN_DIR is not in your PATH. Please add it."
+    fi
+
+    common_setup "$LOCAL_BIN"
+}
+
 common_setup(){
     local EXEC_PATH=$1
     setup_autostart "$EXEC_PATH"
@@ -214,6 +278,8 @@ elif [[ "$action" == "2" ]]; then
     rm -f "$LOCAL_BIN" 2>/dev/null
 
     echo "FINISHED!"
+elif [[ "$action" == "5" ]]; then
+    install_dev
 fi
 
 rm -- "$0"

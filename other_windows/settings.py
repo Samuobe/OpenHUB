@@ -41,6 +41,21 @@ class UpdateThread(QThread):
                 return
             self.progress.emit(100)
             self.finished.emit(f"main ({ver})")
+        elif self.install_type == "dev":
+            try:
+                self.progress.emit(10)
+                subprocess.check_call(['git', 'checkout', 'dev'], cwd=os.getcwd())
+                subprocess.check_call(['git', 'pull', 'origin', 'dev'], cwd=os.getcwd())
+                ver = subprocess.check_output(
+                    ['git', 'rev-parse', '--short', 'HEAD'],
+                    cwd=os.getcwd()
+                ).decode().strip()
+            except Exception as e:
+                self.finished.emit(f"Errore aggiornamento: {e}")
+                return
+
+            self.progress.emit(100)
+            self.finished.emit(f"dev ({ver})")
         elif self.install_type == "stable":
             self.progress.emit(5)
             try:
@@ -127,6 +142,10 @@ def open_settings_page():
             instalation_type_user = lpak.get("main", language)
         elif instalation_type == "stable":
             instalation_type_user = lpak.get("stable",language)
+        elif instalation_type == "dev":
+            instalation_type_user = lpak.get("dev", language)
+        else:
+            instalation_type_user = instalation_type
 
     def get_openhub_version():
         try:
