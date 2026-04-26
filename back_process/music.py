@@ -19,7 +19,7 @@ def start_telnet_base():
         cmd = [
             "cvlc", 
             "-I", "dummy", 
-            "--extraintf=telnet,dbus", 
+            "--extraintf=telnet,mpris", 
             f"--telnet-password={TELNET_PASSWORD}", 
             f"--telnet-port={TELNET_PORT}"
         ]
@@ -49,7 +49,7 @@ def start_cd():
     cmd = [
         "cvlc", 
         "-I", "dummy", 
-        "--extraintf=telnet,dbus", 
+        "--extraintf=telnet,mpris",
         f"--telnet-password={TELNET_PASSWORD}", 
         f"--telnet-port={TELNET_PORT}", 
         "cdda:///dev/sr0"

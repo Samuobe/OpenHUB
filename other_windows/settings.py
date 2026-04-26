@@ -111,7 +111,6 @@ def open_settings_page():
     main_layout.setContentsMargins(10, 10, 10, 10)
     main_layout.addLayout(up_bar_layout)
 
-    # FUNZIONE PER CREARE NUOVE LINEE (Risolve il problema della linea che scompare)
     def create_line():
         l = QFrame()
         l.setFrameShape(QFrame.Shape.HLine)
@@ -120,7 +119,7 @@ def open_settings_page():
 
     main_layout.addWidget(create_line())
 
-    # Contenuto centrale
+    # central content
     label_title = QLabel(f"{lpak.get('Settings', language)}")
     label_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
