@@ -111,7 +111,6 @@ install_standard() {
         INSTALL_TYPE="stable"
         echo "Downloading and extracting the latest stable release from GitHub..."
         
-        # Scarica ultime info release (usare zipball_url e tag_name)
         GITHUB_API="https://api.github.com/repos/Samuobe/OpenHUB/releases/latest"
         ZIP_URL=$(curl -s "$GITHUB_API" | grep '"zipball_url":' | head -1 | cut -d '"' -f4)
         REL_VER=$(curl -s "$GITHUB_API" | grep '"tag_name":' | head -1 | cut -d '"' -f4)
@@ -126,12 +125,9 @@ install_standard() {
         ARCHIVE="$TMP_DIR/openhub.zip"
         curl -L "$ZIP_URL" -o "$ARCHIVE"
 
-        # Pulisce tutto tranne info/ (protegge le info di installazione)
         find "$INSTALL_DIR" -mindepth 1 -not -path "$INFO_DIR" -exec rm -rf {} +
 
-        # Estrai ZIP (spacchetta nella root dir scelta dall’utente)
         unzip -q "$ARCHIVE" -d "$TMP_DIR/unzipped"
-        # trova sottocartella estratta (GitHub mette tutto in una cartella nome random)
         TOP_DIR=$(find "$TMP_DIR/unzipped" -mindepth 1 -maxdepth 1 -type d | head -1)
         cp -rfT "$TOP_DIR" "$INSTALL_DIR"
 
@@ -139,7 +135,6 @@ install_standard() {
 
         write_info_file "$INSTALL_TYPE" "$INFO_DIR"
 
-        # Crea wrapper eseguibile
         cat <<EOF > "$LOCAL_BIN"
 #!/bin/bash
 cd "$INSTALL_DIR"
@@ -149,7 +144,6 @@ EOF
 
         echo "OpenHUB STABLE version installed: $REL_VER"
     else
-        # Installazione main (preview): clone oppure update git
         if [ -d "$INSTALL_DIR/.git" ]; then
             echo "Updating existing OpenHUB repository in $INSTALL_DIR..."
             cd "$INSTALL_DIR" || exit

@@ -128,15 +128,25 @@ def open_settings_page():
         elif instalation_type == "stable":
             instalation_type_user = lpak.get("stable",language)
 
-    try:
-        version_name = subprocess.check_output(
-            ['git', 'rev-parse', '--short', 'HEAD'], 
-            stderr=subprocess.STDOUT
-        ).decode().strip()
-    except Exception:
-        with open("info/ver.info", "r") as f:
-            version_name = f.readlines()[0]
-            
+    def get_openhub_version():
+        try:
+            version = subprocess.check_output(
+                ['git', 'rev-parse', '--short', 'HEAD'],
+                stderr=subprocess.STDOUT
+            ).decode().strip()
+            if version:
+                return version
+        except Exception:
+            pass
+        try:
+            with open(os.path.join("info", "ver.info"), "r") as f:
+                version = f.readline().strip()
+                if version:
+                    return version
+        except Exception:
+            pass
+        return "(versione sconosciuta)"
+
 
     def write_settings():
         global config
@@ -398,7 +408,6 @@ def open_settings_page():
             update_status_label.setText(f"Aggiornamento terminato: {msg}")
             update_progress.setVisible(False)
             restart_button.setVisible(True)
-            # Rilascio thread
             global update_thread
             update_thread = None
 
@@ -407,7 +416,7 @@ def open_settings_page():
 
     start_update_button = QPushButton(text="Aggiorna")
     start_update_button.clicked.connect(start_update)
-    version_label=QLabel(f"{instalation_type_user} - {version_name}")
+    version_label=QLabel(f"{instalation_type_user} - {get_openhub_version()}")
 
 
 
