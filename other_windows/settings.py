@@ -27,6 +27,30 @@ class UpdateThread(QThread):
         super().__init__(parent)
         self.install_type = install_type
 
+    def sync_venv():
+        import os
+        import subprocess
+
+        project_dir = os.getcwd()
+        venv_pip = os.path.join(project_dir, "venv", "bin", "pip")
+        requirements = os.path.join(project_dir, "requirements.txt")
+
+        if not os.path.isfile(venv_pip):
+            return 
+
+        if not os.path.isfile(requirements):
+            return  
+
+        subprocess.call([venv_pip, "install", "--upgrade", "pip"])
+
+        subprocess.call([
+            venv_pip,
+            "install",
+            "--upgrade",
+            "-r",
+            requirements
+        ])
+
     def run(self):
         import subprocess
         import os, shutil, tempfile, json
@@ -34,8 +58,15 @@ class UpdateThread(QThread):
         if self.install_type == "main":
             try:
                 self.progress.emit(10)
+                
                 subprocess.check_call(['git', 'pull'], cwd=os.getcwd())
-                ver = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], cwd=os.getcwd()).decode().strip()
+
+                sync_venv()
+
+                ver = subprocess.check_output(
+                    ['git', 'rev-parse', '--short', 'HEAD'],
+                    cwd=os.getcwd()
+                ).decode().strip()
             except Exception as e:
                 self.finished.emit(f"Errore aggiornamento: {e}")
                 return
@@ -46,6 +77,13 @@ class UpdateThread(QThread):
                 self.progress.emit(10)
                 subprocess.check_call(['git', 'checkout', 'dev'], cwd=os.getcwd())
                 subprocess.check_call(['git', 'pull', 'origin', 'dev'], cwd=os.getcwd())
+
+                sync_venv()
+
+                ver = subprocess.check_output(
+                    ['git', 'rev-parse', '--short', 'HEAD'],
+                    cwd=os.getcwd()
+                ).decode().strip()
                 ver = subprocess.check_output(
                     ['git', 'rev-parse', '--short', 'HEAD'],
                     cwd=os.getcwd()
@@ -97,6 +135,7 @@ class UpdateThread(QThread):
                         shutil.copy2(src, dst)
                 self.progress.emit(90)
                 shutil.rmtree(tmpdir)
+                sync_venv()
                 self.progress.emit(100)
                 self.finished.emit(f"stable ({relver})")
             except Exception as e:

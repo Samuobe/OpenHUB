@@ -4,6 +4,36 @@ DEFAULT_INSTALL_DIR="$HOME/.local/share/OpenHUB"
 BIN_DIR="$HOME/.local/bin"
 LOCAL_BIN="$BIN_DIR/open-hub"
 
+setup_python_env() {
+    local INSTALL_DIR=$1
+    local VENV_DIR="$INSTALL_DIR/venv"
+    local REQUIREMENTS_FILE="$INSTALL_DIR/requirements.txt"
+
+    echo
+    echo "Setting up Python virtual environment..."
+
+    # crea venv se non esiste
+    if [ ! -d "$VENV_DIR" ]; then
+        python3 -m venv "$VENV_DIR"
+    fi
+
+    # attiva venv
+    source "$VENV_DIR/bin/activate"
+
+    # aggiorna pip
+    pip install --upgrade pip
+
+    # installa requirements se esiste
+    if [ -f "$REQUIREMENTS_FILE" ]; then
+        echo "Installing dependencies from requirements.txt..."
+        pip install -r "$REQUIREMENTS_FILE"
+    else
+        echo "No requirements.txt found."
+    fi
+
+    deactivate
+}
+
 setup_autostart() {
     local EXEC_PATH=$1
 
@@ -102,7 +132,8 @@ install_dev() {
         echo "Cloning OpenHUB repository (dev branch)..."
         git clone -b dev https://github.com/samuobe/OpenHUB.git "$INSTALL_DIR"
     fi
-
+    
+    setup_python_env "$INSTALL_DIR"
     write_info_file "$INSTALL_TYPE" "$INFO_DIR"
 
     cat <<EOF > "$LOCAL_BIN"
@@ -202,7 +233,8 @@ install_standard() {
         cat <<EOF > "$LOCAL_BIN"
 #!/bin/bash
 cd "$INSTALL_DIR"
-python3 main.py "\$@"
+source venv/bin/activate
+python main.py "$@"
 EOF
         chmod +x "$LOCAL_BIN"
 
@@ -236,7 +268,7 @@ EOF
     if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
         echo "WARNING: $BIN_DIR is not in your PATH. Please add it to your ~/.bashrc or ~/.zshrc."
     fi
-
+    setup_python_env "$INSTALL_DIR"
     common_setup "$LOCAL_BIN"
 }
 
