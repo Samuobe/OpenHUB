@@ -137,7 +137,7 @@ def open_settings_page():
     calendar_widget_status = config.get("Widgets", "Calendar")
 
     with open("info/instalation_type.info", "r") as f:
-        instalation_type = f.readlines()[0]
+        instalation_type = f.readlines()[0].strip()
         if instalation_type == "main":
             instalation_type_user = lpak.get("Main", language)
         elif instalation_type == "stable":
