@@ -1,8 +1,8 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox, QGridLayout, QFrame
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox, QGridLayout, QFrame, QProgressBar, QMessageBox
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 import configparser
 import glob
 import functions.lpak as lpak
@@ -15,6 +15,78 @@ import shutil
 settings_window = None 
 config = None
 setting_status_label = None
+update_thread = None
+
+NO_OVERWRITE_FILES = ["config.conf","credential.env", "instalation_type.info" ]
+
+class UpdateThread(QThread):
+    progress = pyqtSignal(int)
+    finished = pyqtSignal(str) 
+
+    def __init__(self, install_type, parent=None):
+        super().__init__(parent)
+        self.install_type = install_type
+
+    def run(self):
+        import subprocess
+        import os, shutil, tempfile, json
+
+        if self.install_type == "main":
+            try:
+                self.progress.emit(10)
+                subprocess.check_call(['git', 'pull'], cwd=os.getcwd())
+                ver = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], cwd=os.getcwd()).decode().strip()
+            except Exception as e:
+                self.finished.emit(f"Errore aggiornamento: {e}")
+                return
+            self.progress.emit(100)
+            self.finished.emit(f"main ({ver})")
+        elif self.install_type == "stable":
+            self.progress.emit(5)
+            try:
+                import requests
+                r = requests.get('https://api.github.com/repos/Samuobe/OpenHUB/releases/latest')
+                d = r.json()
+                zip_url = d.get("zipball_url")
+                relver = d.get("tag_name")
+
+                if not zip_url or not relver:
+                    self.finished.emit("Source ZIP release non trovata!")
+                    return
+
+                self.progress.emit(20)
+                tmpdir = tempfile.mkdtemp()
+                zippath = os.path.join(tmpdir, 'release.zip')
+                with requests.get(zip_url, stream=True) as resp, open(zippath, 'wb') as f:
+                    for chunk in resp.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                self.progress.emit(40)
+
+                import zipfile
+                with zipfile.ZipFile(zippath, 'r') as zip_ref:
+                    zip_ref.extractall(tmpdir)
+                folder = [f for f in os.listdir(tmpdir) if os.path.isdir(os.path.join(tmpdir, f))][0]
+                srcdir = os.path.join(tmpdir, folder)
+                dstdir = os.getcwd()
+                for root, dirs, files in os.walk(srcdir):
+                    rel_root = os.path.relpath(root, srcdir)
+                    for file in files:
+                        rel_path = os.path.normpath(os.path.join(rel_root, file))
+                        if rel_path in NO_OVERWRITE_FILES:
+                            continue
+                        src = os.path.join(root, file)
+                        dst = os.path.join(dstdir, rel_path)
+                        dst_folder = os.path.dirname(dst)
+                        if not os.path.exists(dst_folder):
+                            os.makedirs(dst_folder, exist_ok=True)
+                        shutil.copy2(src, dst)
+                self.progress.emit(90)
+                shutil.rmtree(tmpdir)
+                self.progress.emit(100)
+                self.finished.emit(f"stable ({relver})")
+            except Exception as e:
+                self.finished.emit(f"Errore aggiornamento: {e}")
+                return
 
 def open_settings_page():
     shutil.copyfile("config.conf","config.conf.old")
@@ -48,6 +120,13 @@ def open_settings_page():
 
     music_widget_status = config.get("Widgets", "Music")
     calendar_widget_status = config.get("Widgets", "Calendar")
+
+    with open("info/instalation_type.info", "r") as f:
+        instalation_type = f.readlines()[0]
+        if instalation_type == "main":
+            instalation_type_user = lpak.get("main", language)
+        elif instalation_type == "stable":
+            instalation_type_user = lpak.get("stable",language)
 
     def write_settings():
         global config
@@ -278,6 +357,53 @@ def open_settings_page():
     data_widget.addWidget(create_line(), bottom_row, 0, 1, 4)
     data_widget.addWidget(button_edit_credential, bottom_row + 1, 0, 1, 4)
     data_widget.addWidget(setting_status_label, bottom_row+2,0,1, 1)
+
+    update_progress = QProgressBar()
+    update_progress.setVisible(False)
+
+    update_status_label = QLabel()
+    update_status_label.setVisible(False)
+
+    restart_button = QPushButton("Riavvia OpenHUB")
+    restart_button.setVisible(False)
+
+    def on_restart():
+        os.system("systemctl --user restart openhub.service")
+        pass
+    restart_button.clicked.connect(on_restart)
+
+    def start_update():
+        global update_thread
+        update_progress.setVisible(True)
+        update_progress.setValue(0)
+        update_status_label.setVisible(True)
+        update_status_label.setText("Aggiornamento in corso, attendere...")
+
+        restart_button.setVisible(False)
+        _inst_type = instalation_type.strip()
+        update_thread = UpdateThread(_inst_type)
+        update_thread.progress.connect(update_progress.setValue)
+
+        def on_update_finished(msg):
+            update_status_label.setText(f"Aggiornamento terminato: {msg}")
+            update_progress.setVisible(False)
+            restart_button.setVisible(True)
+            # Rilascio thread
+            global update_thread
+            update_thread = None
+
+        update_thread.finished.connect(on_update_finished)
+        update_thread.start()
+
+    start_update_button = QPushButton(text="Aggiorna")
+    start_update_button.clicked.connect(start_update)
+
+
+    r = bottom_row+3 
+    data_widget.addWidget(start_update_button, r,0,1,1)
+    data_widget.addWidget(update_progress, r,1,1,2)
+    data_widget.addWidget(update_status_label, r+1,0,1,3)
+    data_widget.addWidget(restart_button, r+2,0,1,3)
 
 
     data_widget.setColumnStretch(0, 1)

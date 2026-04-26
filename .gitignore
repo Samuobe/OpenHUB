@@ -13,3 +13,4 @@ vlc_pid.txt
 *clock.txt
 PKGBUILD
 *.old
+instalation_type.info
