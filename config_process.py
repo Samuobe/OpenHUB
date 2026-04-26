@@ -16,7 +16,6 @@ def test_mode_enable():
 
 data_path = ""
 
-# Leggi la configurazione iniziale per la lingua preservando il case-sensitive
 config_main = configparser.ConfigParser()
 config_main.optionxform = str
 if os.path.isfile("config.conf"):
@@ -33,7 +32,7 @@ app_state = {
 CONFIG_SCHEMA = [
     {
         "name": "Device info",
-        "keys": ["device_name"],
+        "keys": ["device_name", "city"],
         "optional": False
     },
     {

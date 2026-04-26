@@ -18,6 +18,11 @@ import alsaaudio
 from other_windows.settings import open_settings_page
 from other_windows.bluetooth_manager import open_bluetooth_window
 from PyQt6.QtCore import QTimer
+import openmeteo_requests
+import pandas as pd
+import requests_cache
+from retry_requests import retry
+from datetime import datetime, timedelta
 
 mixer = alsaaudio.Mixer()
     
@@ -27,6 +32,7 @@ config.optionxform = str
 config.read("credential.env")
 
 device_name = config.get("Device info", "device_name")
+city=config.get("Device info", "city")
 
 caldav_url = config.get("CALDAV", "caldav_url")
 caldav_username = config.get("CALDAV", "caldav_username")
@@ -76,6 +82,7 @@ def get_states():
 def stop():
     return "STOP SIGNAL"
 
+#music
 def manage_music(action: str = None, song_name: str = None):
     global player
     
@@ -278,6 +285,7 @@ def manage_music(action: str = None, song_name: str = None):
     else:
         return "Segnalate this error: CODE ERROR; NO VALID ACTION FOR MANAGE MUSIC"
  
+#Calendar
 def manage_events(date: str, time: str, description: str, action: int):
     print(f"\n📅 EVENTO: {description} IL {date} ALLE {time} AZIONE: {action}\n")
     return "Evento salvato localmente."
@@ -352,6 +360,7 @@ def get_events(limit: int = 15):
 
     return formatted[:limit] if formatted else "Nessun evento."
 
+#Home assistant
 def home_assistant(action: int, device_input: str):
     if home_assistant_url == "-" or home_assistant_token == "-":
         return "Error, home assistant is not configurated, configure it in settings"  
@@ -391,9 +400,138 @@ def home_assistant(action: int, device_input: str):
             print(f"❌ Failed to execute {service} on {entity_id}")
             return None
 
-def weather():
-    return "Say to the user: whatch out of your window"
+#Whater
+def get_coordinates(city):
+    url = "https://geocoding-api.open-meteo.com/v1/search"
+    params = {
+        "name": city,
+        "count": 1,
+        "language": "en",
+        "format": "json"
+    }
+    res = requests.get(url, params=params).json()
 
+    if "results" in res:
+        r = res["results"][0]
+        return r["latitude"], r["longitude"], r["timezone"]
+    return None, None, None
+
+def weather_description(code):
+    mapping = {
+        0: "Clear sky",
+        1: "Mainly clear",
+        2: "Partly cloudy",
+        3: "Overcast",
+        45: "Fog",
+        48: "Freezing fog",
+        51: "Light drizzle",
+        53: "Moderate drizzle",
+        55: "Dense drizzle",
+        61: "Light rain",
+        63: "Moderate rain",
+        65: "Heavy rain",
+        71: "Light snow",
+        73: "Moderate snow",
+        75: "Heavy snow",
+        80: "Light rain showers",
+        81: "Moderate rain showers",
+        82: "Violent rain showers",
+        95: "Thunderstorm"
+    }
+    return mapping.get(int(code), "Unknown")
+
+def get_weather(city, day_offset, hour):
+
+    lat, lon, tz = get_coordinates(city)
+    if lat is None:
+        return {"error": "City not found"}
+
+    cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
+    retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
+    openmeteo = openmeteo_requests.Client(session=retry_session)
+
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": [
+            "temperature_2m",
+            "relative_humidity_2m",
+            "apparent_temperature",
+            "precipitation",
+            "weathercode",
+            "windspeed_10m",
+            "winddirection_10m",
+            "pressure_msl"
+        ],
+        "forecast_days": 7,
+    }
+
+    response = openmeteo.weather_api(url, params=params)[0]
+    hourly = response.Hourly()
+
+    df = pd.DataFrame({
+        "date": pd.date_range(
+            start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
+            end=pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True),
+            freq=pd.Timedelta(seconds=hourly.Interval()),
+            inclusive="left"
+        ),
+        "temperature": hourly.Variables(0).ValuesAsNumpy(),
+        "humidity": hourly.Variables(1).ValuesAsNumpy(),
+        "apparent_temperature": hourly.Variables(2).ValuesAsNumpy(),
+        "precipitation": hourly.Variables(3).ValuesAsNumpy(),
+        "weathercode": hourly.Variables(4).ValuesAsNumpy(),
+        "windspeed": hourly.Variables(5).ValuesAsNumpy(),
+        "winddirection": hourly.Variables(6).ValuesAsNumpy(),
+        "pressure": hourly.Variables(7).ValuesAsNumpy(),
+    })
+
+    # 🔥 FIX CRUCIALE: converti nel timezone della città
+    df["date"] = df["date"].dt.tz_convert(tz)
+
+    # target time coerente
+    now = datetime.now().astimezone()
+
+    target_time = now.replace(
+        hour=hour,
+        minute=0,
+        second=0,
+        microsecond=0
+    ) + timedelta(days=day_offset)
+
+    closest = df.iloc[(df["date"] - target_time).abs().argsort()[:1]]
+    row = closest.iloc[0]
+
+    return {
+        "city": city,
+        "timezone": tz,
+        "requested_time": target_time.isoformat(),
+        "actual_time": str(row["date"]),
+        "temperature": round(float(row["temperature"]), 1),
+        "apparent_temperature": round(float(row["apparent_temperature"]), 1),
+        "humidity": int(row["humidity"]),
+        "precipitation": round(float(row["precipitation"]), 2),
+        "weather": weather_description(row["weathercode"]),
+        "windspeed": round(float(row["windspeed"]), 1),
+        "winddirection": int(row["winddirection"]),
+        "pressure": round(float(row["pressure"]), 1)
+    }
+
+def weather(city: str = city, day_offset: int = 0, hour: int = 16):
+    try:
+        data = get_weather(city, day_offset, hour)
+        text = ""
+
+        for key, value in data.items():
+            text += f"{key}: {value}\n"
+
+
+        return f"Weather data for {city}: {text}"
+    except:
+        return "Error during wetaher research"
+
+#TImer
 def timer(name: str = None, time: str=None, tipe: str=0):
     os.makedirs("operations_data", exist_ok=True)
     if name == None:
@@ -415,7 +553,8 @@ def timer(name: str = None, time: str=None, tipe: str=0):
         return "timer set"
     else:
         return "allarm set"
-        
+
+#Volume  
 def manage_volume(action: str = None, volume: int = None):
     action = action.lower()
     if action == "set":
@@ -444,6 +583,7 @@ def manage_volume(action: str = None, volume: int = None):
     else:
         return f"Segnalate this error: Invalid volume_mange action: {action}"
     
+#BLueooth
 def get_backend_paired_devices():
     devices = []
     result = subprocess.run(["bluetoothctl", "devices"], capture_output=True, text=True)
@@ -517,7 +657,8 @@ def bluetooth_actions(action: str = None, device_name: str = None):
         else:
             return f"Failed to disconnect from {actual_name}."
 
-# Aggiungi questa variabile fuori dalle funzioni
+
+#Open windows
 window_to_open = None
 
 def open_window(window: str=None):
@@ -549,6 +690,7 @@ available_functions = {
     "get_events": get_events,
     "home_assistant": home_assistant,
     "stop": stop,
+    "weather": weather,
     "timer": timer,
     "manage_volume" : manage_volume,
     "bluetooth_actions": bluetooth_actions,
@@ -606,6 +748,31 @@ tools = [
                     "action": {"type": "integer", "description": "0=stato,1=accendi,2=spegni"}
                 },
                 "required": ["device_input", "action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "weather",
+            "description": "Get wetaher data from specific day, city, and hour",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {  
+                        "type": "string",
+                        "description": "Name of the city in question. If user don't say a city you musn't pass any at the function"
+                    },
+                    "day_offset": {
+                        "type": "integer", 
+                        "description": "Number of days from today (0 = today, 1 = tomorrow, 2 = day after tomorrow, etc.)"
+                    },
+                    "hour": {
+                        "type": "integer", 
+                        "description": "Hour of the day in 24-hour format (0–23) representing the target time."
+                    }
+                },
+                "required": ["dayday_offset", "hour"]
             }
         }
     },
