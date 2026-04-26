@@ -128,6 +128,16 @@ def open_settings_page():
         elif instalation_type == "stable":
             instalation_type_user = lpak.get("stable",language)
 
+    try:
+        version_name = subprocess.check_output(
+            ['git', 'rev-parse', '--short', 'HEAD'], 
+            stderr=subprocess.STDOUT
+        ).decode().strip()
+    except Exception:
+        with open("info/ver.info", "r") as f:
+            version_name = f.readlines()[0]
+            
+
     def write_settings():
         global config
         with open(f"{data_path}config.conf", "w") as configfile:
@@ -397,10 +407,13 @@ def open_settings_page():
 
     start_update_button = QPushButton(text="Aggiorna")
     start_update_button.clicked.connect(start_update)
+    version_label=QLabel(f"{instalation_type_user} - {version_name}")
+
 
 
     r = bottom_row+3 
     data_widget.addWidget(start_update_button, r,0,1,1)
+    data_widget.addWidget(version_label, r+1,0,1,1)
     data_widget.addWidget(update_progress, r,1,1,2)
     data_widget.addWidget(update_status_label, r+1,0,1,3)
     data_widget.addWidget(restart_button, r+2,0,1,3)
