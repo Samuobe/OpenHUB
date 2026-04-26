@@ -1,9 +1,8 @@
 #!/bin/bash
 
-INSTALL_DIR="$HOME/.local/share/OpenHUB"
+DEFAULT_INSTALL_DIR="$HOME/.local/share/OpenHUB"
 BIN_DIR="$HOME/.local/bin"
 LOCAL_BIN="$BIN_DIR/open-hub"
-INFO_DIR="$HOME/.local/share/OpenHUB/info"
 
 setup_autostart() {
     local EXEC_PATH=$1
@@ -69,84 +68,126 @@ common_setup(){
 
 write_info_file() {
     local install_type=$1
-    mkdir -p "$INFO_DIR"
-    echo "$install_type" > "$INFO_DIR/instalation_type.info"
-    echo "Installation type saved as '$install_type' in $INFO_DIR/instalation_type.info"
+    local info_dir=$2
+    mkdir -p "$info_dir"
+    echo "$install_type" > "$info_dir/instalation_type.info"
+    echo "Installation type saved as '$install_type' in $info_dir/instalation_type.info"
 }
 
 install_standard() {
     echo "Installing OpenHUB locally for the current user..."
-    
     echo
-    read -p "Do you want to install the STABLE version instead of PREVIEW (main)? (y/n): " is_stable
-    
-    local branch_name="main"
-    local type_string="main"
-    
-    if [[ "$is_stable" =~ ^[Yy]$ ]]; then
-        branch_name="stable"
-        type_string="stable"
-    fi
+    read -p "Do you want to install the STABLE version (latest GitHub release) instead of PREVIEW (main branch)? (y/n): " is_stable
 
-    mkdir -p "$INSTALL_DIR"
+    local type_string="main"
+    echo
+    read -p "Enter installation directory (Default: $DEFAULT_INSTALL_DIR): " user_dir
+    
+    local INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+    if [[ -n "$user_dir" ]]; then
+        user_dir="${user_dir/#\~/$HOME}"
+        if [[ "$user_dir" != /* ]]; then
+            user_dir="$PWD/$user_dir"
+        fi
+        INSTALL_DIR="$user_dir"
+    fi
+    local INFO_DIR="$INSTALL_DIR/info"
+
+    if [ ! -d "$INSTALL_DIR" ]; then
+        if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+            echo "Requires root privileges to create directory '$INSTALL_DIR'..."
+            sudo mkdir -p "$INSTALL_DIR"
+            sudo chown -R "$USER:$USER" "$INSTALL_DIR"
+        fi
+    else
+        if [ ! -w "$INSTALL_DIR" ]; then
+            echo "Requires root privileges to gain write access to '$INSTALL_DIR'..."
+            sudo chown -R "$USER:$USER" "$INSTALL_DIR"
+        fi
+    fi
     mkdir -p "$BIN_DIR"
 
-    if [ -d "$INSTALL_DIR/.git" ]; then
-        echo "Updating existing OpenHUB repository..."
-        cd "$INSTALL_DIR"
-        git fetch --all
-        git checkout "$branch_name"
-        git pull origin "$branch_name"
-    else
-        echo "Cloning OpenHUB repository (Branch: $branch_name)..."
-        git clone -b "$branch_name" https://github.com/samuobe/OpenHUB.git "$INSTALL_DIR"
-    fi
+    if [[ "$is_stable" =~ ^[Yy]$ ]]; then
+        # === STABLE: SCARICA RELEASE ===
+        type_string="stable"
+        echo "Downloading latest stable release from GitHub..."
 
+        # Recupera dati ultima release
+        release_data=$(curl -s https://api.github.com/repos/samuobe/OpenHUB/releases/latest)
+        release_url=$(echo "$release_data" | grep "browser_download_url" | grep -E '\.zip"|\.tar\.gz"' | head -1 | cut -d '"' -f4)
+        release_version=$(echo "$release_data" | grep '"tag_name":' | cut -d '"' -f4)
 
-    write_info_file "$type_string"
+        if [[ -z "$release_url" || -z "$release_version" ]]; then
+            echo "Error: Could not determine latest release version or download URL."
+            exit 1
+        fi
+        echo "Latest release: $release_version ($release_url)"
 
-    cat <<EOF > "$LOCAL_BIN"
+        temp_dir=$(mktemp -d)
+        archive_file="$temp_dir/openhub_release.$(basename "$release_url")"
+        curl -L "$release_url" -o "$archive_file"
+
+        # Pulisci dir di installazione (tranne BIN locale se coincide)
+        if [ -d "$INSTALL_DIR" ]; then
+            find "$INSTALL_DIR" -mindepth 1 -not -path "$INFO_DIR" -exec rm -rf {} +
+        fi
+
+        # Estrai
+        if [[ "$release_url" =~ \.zip$ ]]; then
+            unzip -q "$archive_file" -d "$temp_dir/unzipped"
+            # Trova la prima cartella estratta
+            top_dir=$(find "$temp_dir/unzipped" -mindepth 1 -maxdepth 1 -type d | head -1)
+            cp -r "$top_dir"/* "$INSTALL_DIR/"
+        else
+            tar --strip-components=1 -xzf "$archive_file" -C "$INSTALL_DIR"
+        fi
+
+        rm -rf "$temp_dir"
+
+        write_info_file "$type_string" "$INFO_DIR"
+
+        # Crea wrapper eseguibile locale
+        cat <<EOF > "$LOCAL_BIN"
 #!/bin/bash
 cd "$INSTALL_DIR"
 python3 main.py "\$@"
 EOF
-    chmod +x "$LOCAL_BIN"
+        chmod +x "$LOCAL_BIN"
 
-    echo "Local installation finished! Executable created at $LOCAL_BIN"
-    
+        echo "OpenHUB STABLE version installed: $release_version"
+    else
+        # === MAIN PREVIEW, GIT CLONE ===
+        if [ -d "$INSTALL_DIR/.git" ]; then
+            echo "Updating existing OpenHUB repository in $INSTALL_DIR..."
+            cd "$INSTALL_DIR" || exit
+            git fetch --all
+            git checkout main
+            git pull origin main
+        else
+            echo "Cloning OpenHUB repository (main branch) into $INSTALL_DIR..."
+            git clone -b main https://github.com/samuobe/OpenHUB.git "$INSTALL_DIR"
+        fi
+
+        write_info_file "$type_string" "$INFO_DIR"
+
+        cat <<EOF > "$LOCAL_BIN"
+#!/bin/bash
+cd "$INSTALL_DIR"
+python3 main.py "\$@"
+EOF
+        chmod +x "$LOCAL_BIN"
+
+
+        cd "$INSTALL_DIR"
+        commit_version=$(git rev-parse --short HEAD)
+        echo "OpenHUB PREVIEW (main) version: $commit_version"
+    fi
+
     if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
         echo "WARNING: $BIN_DIR is not in your PATH. Please add it to your ~/.bashrc or ~/.zshrc."
     fi
 
     common_setup "$LOCAL_BIN"
-}
-
-install_pkgbuild() {
-    local version_type=$1
-    mkdir -p open-hub-install
-    cd open-hub-install
-
-    PYTHON_PATH=$(which python3)
-
-    echo "Installing OpenHUB via PKGBUILD ($version_type)..."
-    if [ "$version_type" == "stable" ]; then
-        wget -O PKGBUILD https://raw.githubusercontent.com/samuobe/OpenHUB/main/PKGBUILD/PKGBUILD
-        write_info_file "pkgbuild"
-    elif [ "$version_type" == "beta" ]; then
-        wget -O PKGBUILD https://raw.githubusercontent.com/samuobe/OpenHUB/main/PKGBUILD/PKGBUILD-git
-        write_info_file "pkgbuild"
-    elif [ "$version_type" == "dev" ]; then
-        wget -O PKGBUILD https://raw.githubusercontent.com/samuobe/OpenHUB/main/PKGBUILD/PKGBUILD-dev
-        write_info_file "dev"
-    fi
-    
-    makepkg -sif
-    rm PKGBUILD
-    cd ..
-    rm -rf open-hub-install
-    
-    echo "PKGBUILD installation finished!"
-    common_setup "/usr/bin/open-hub"
 }
 
 echo "Welcome to the OpenHUB installation program!"
@@ -156,32 +197,9 @@ echo "2) Uninstall OpenHUB"
 read -p "Select an option [1/2]: " action
 
 if [[ "$action" == "1" ]]; then
-    if [ -f "/etc/arch-release" ]; then
-        echo
-        echo "Arch Linux detected."
-        echo "Do you want to use the standard local user installation (Recommended) or the global PKGBUILD?"
-        echo "1) Standard Local Install (Recommended)"
-        echo "2) Global PKGBUILD"
-        read -p "Choose installation method [1/2] (Default: 1): " arch_method
-        
-        if [[ -z "$arch_method" || "$arch_method" == "1" ]]; then
-            install_standard
-        else
-            echo 
-            read -p "Install the stable version? (y/n): " choice
-            if [[ "$choice" =~ ^[Yy]$ ]]; then
-                install_pkgbuild "stable"
-            else
-                install_pkgbuild "beta"
-            fi
-        fi
-    else
-        echo "Non-Arch Linux system detected. Using standard local installation."
-        install_standard
-    fi
+    install_standard
 
 elif [[ "$action" == "2" ]]; then
-    echo
     echo
     echo "Uninstalling OpenHUB..."
     
@@ -189,10 +207,25 @@ elif [[ "$action" == "2" ]]; then
     systemctl --user disable openhub.service 2>/dev/null
     rm -f ~/.config/systemd/user/openhub.service
     systemctl --user daemon-reload
+
+    INSTALL_DIR_TO_REMOVE="$DEFAULT_INSTALL_DIR"
+    if [ -f "$LOCAL_BIN" ]; then
+        EXTRACTED_DIR=$(grep '^cd ' "$LOCAL_BIN" | sed 's/^cd "\(.*\)"$/\1/')
+        if [[ -n "$EXTRACTED_DIR" ]]; then
+            INSTALL_DIR_TO_REMOVE="$EXTRACTED_DIR"
+        fi
+    fi
+
+    echo "Removing installation files from $INSTALL_DIR_TO_REMOVE..."
     
-    rm -rf "$INSTALL_DIR" 2>/dev/null
+    if [ -d "$INSTALL_DIR_TO_REMOVE" ]; then
+        if ! rm -rf "$INSTALL_DIR_TO_REMOVE" 2>/dev/null; then
+            echo "Requires root privileges to remove directory..."
+            sudo rm -rf "$INSTALL_DIR_TO_REMOVE"
+        fi
+    fi
+    
     rm -f "$LOCAL_BIN" 2>/dev/null
-    rm -rf "$INFO_DIR" 2>/dev/null
 
     if command -v pacman >/dev/null 2>&1; then
         sudo pacman -Rns open-hub 2>/dev/null
@@ -201,14 +234,6 @@ elif [[ "$action" == "2" ]]; then
     fi
 
     echo "FINISHED!"
-
-elif [[ "$action" == "5" ]]; then
-    if [ -f "/etc/arch-release" ]; then
-        install_pkgbuild "dev"
-        sudo rm -f /usr/share/arch-store/AUR 2>/dev/null
-    else
-        echo "Error: Option 5 (DEV branch via PKGBUILD) is only supported on Arch Linux."
-    fi
 fi
 
 rm -- "$0"
