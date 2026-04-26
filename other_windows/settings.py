@@ -416,7 +416,7 @@ def open_settings_page():
 
     start_update_button = QPushButton(text="Aggiorna")
     start_update_button.clicked.connect(start_update)
-    version_label=QLabel(f"{instalation_type_user} - {get_openhub_version()}")
+    #version_label=QLabel(f"{instalation_type_user} - {get_openhub_version()}")
 
 
 
