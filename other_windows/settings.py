@@ -139,11 +139,11 @@ def open_settings_page():
     with open("info/instalation_type.info", "r") as f:
         instalation_type = f.readlines()[0]
         if instalation_type == "main":
-            instalation_type_user = lpak.get("main", language)
+            instalation_type_user = lpak.get("Main", language)
         elif instalation_type == "stable":
-            instalation_type_user = lpak.get("stable",language)
+            instalation_type_user = lpak.get("Stable",language)
         elif instalation_type == "dev":
-            instalation_type_user = lpak.get("dev", language)
+            instalation_type_user = lpak.get("Dev", language)
         else:
             instalation_type_user = instalation_type
 
@@ -334,8 +334,8 @@ def open_settings_page():
     data_widget.addWidget(button_change_language, 8, 0, 1, 2)
 
 
-    label_title_custom_things=QLabel("Custom component")
-    label_title_custom_widgets=QLabel("Custom label")
+    label_title_custom_things=QLabel(lpak.get("Custom components", language))
+    label_title_custom_widgets=QLabel(lpak.get("Widgets", language))
 
     def change_custom_widget_status(path, status, button):
         if button.text() == lpak.get("Disable", language):
@@ -403,7 +403,7 @@ def open_settings_page():
     update_status_label = QLabel()
     update_status_label.setVisible(False)
 
-    restart_button = QPushButton("Riavvia OpenHUB")
+    restart_button = QPushButton(lpak.get("Restart OpenHUB", language))
     restart_button.setVisible(False)
 
     def on_restart():
@@ -416,7 +416,7 @@ def open_settings_page():
         update_progress.setVisible(True)
         update_progress.setValue(0)
         update_status_label.setVisible(True)
-        update_status_label.setText("Aggiornamento in corso, attendere...")
+        update_status_label.setText(lpak.get("Updating... wait a moment", language))
 
         restart_button.setVisible(False)
         _inst_type = instalation_type.strip()
@@ -424,7 +424,7 @@ def open_settings_page():
         update_thread.progress.connect(update_progress.setValue)
 
         def on_update_finished(msg):
-            update_status_label.setText(f"Aggiornamento terminato: {msg}")
+            update_status_label.setText(f"{lpak.get("Updated finished", language)} {msg}")
             update_progress.setVisible(False)
             restart_button.setVisible(True)
             global update_thread
@@ -433,15 +433,15 @@ def open_settings_page():
         update_thread.finished.connect(on_update_finished)
         update_thread.start()
 
-    start_update_button = QPushButton(text="Aggiorna")
+    start_update_button = QPushButton(text=lpak.get("Update", language))
     start_update_button.clicked.connect(start_update)
-    #version_label=QLabel(f"{instalation_type_user} - {get_openhub_version()}")
+    version_label=QLabel(f"{instalation_type_user} - {get_openhub_version()}")
 
 
 
     r = bottom_row+3 
     data_widget.addWidget(start_update_button, r,0,1,1)
-    #data_widget.addWidget(version_label, r+1,0,1,1)
+    data_widget.addWidget(version_label, r+1,0,1,1)
     data_widget.addWidget(update_progress, r,1,1,2)
     data_widget.addWidget(update_status_label, r+1,0,1,3)
     data_widget.addWidget(restart_button, r+2,0,1,3)

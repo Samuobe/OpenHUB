@@ -26,11 +26,6 @@ Long-term tokens|Long-term tokens
 Bottom left|Bottom left
 Than click|Than click
 Configuration saved!|Configuration saved!
-Energy options|Energy options
-System reboot|System reboot
-System power off|System poweroff
-Close OpenHUB|Close OpenHUB
-Restart OpenHUB|Restart OpenHUB
 Attencion|Attenction
 
 #Buttons
@@ -39,6 +34,11 @@ Close and continue|Close and continue
 Start|Start
 Save configuration|Save configuration
 Close|Close
+Energy options|Energy options
+System reboot|System reboot
+System power off|System poweroff
+Close OpenHUB|Close OpenHUB
+Restart OpenHUB|Restart OpenHUB
 
 
 
@@ -78,6 +78,15 @@ New language|New language
 Default widgets|Default widgets
 Edit services credentials|Edit services credentials
 Close to confirm changes|Close to confirm changes
+Custom components|Custom components
+Widgets|Widgets
+Updating... wait a moment|Updating... wait a moment
+Updated finished|Updated finished
+Update|Update
+Main|Main
+Stable|Stable
+Dev|Dev
+
 
 #Bluetooth
 Bluetooth settings|Bluetooth settings

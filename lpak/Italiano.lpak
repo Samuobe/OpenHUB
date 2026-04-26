@@ -26,11 +26,6 @@ Long-term tokens|Token a lunga vita
 Bottom left|In basso a sinistra
 Than click|Quindi clicca
 Configuration saved!|Configurazione salvata!
-Energy options|Opzioni energetiche
-System reboot|Riavvia il sistema
-System power off|Spegni il sistema
-Close OpenHUB|Esci da OpenHUB
-Restart OpenHUB|Riavvia OpenHUB
 Attencion|Attenzione
 
 #Buttons
@@ -39,6 +34,11 @@ Close and continue|Chiudi e continua
 Start|Inizia
 Save configuration|Salva configurazione
 Close|Chiudi
+Energy options|Opzioni energetiche
+System reboot|Riavvia il sistema
+System power off|Spegni il sistema
+Close OpenHUB|Esci da OpenHUB
+Restart OpenHUB|Riavvia OpenHUB
 
 
 
@@ -78,6 +78,14 @@ New language|Nuova lingua
 Default widgets|Widget default
 Edit services credentials|Modifica credenziali servizi
 Close to confirm changes|Chiudi per confermare i cambiamenti
+Custom components|Componenti custom
+Widgets|Widgets
+Updating... wait a moment|Aggiornamento in corso... aspetta un momento
+Updated finished|Aggiornamento finito!
+Update|Aggiorna
+Main|Main
+Stable|Stabile
+Dev|Sviluppatore
 
 #Bluetooth
 Bluetooth settings|Impostazioni Bluetooth
