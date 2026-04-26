@@ -422,7 +422,7 @@ def open_settings_page():
 
     r = bottom_row+3 
     data_widget.addWidget(start_update_button, r,0,1,1)
-    data_widget.addWidget(version_label, r+1,0,1,1)
+    #data_widget.addWidget(version_label, r+1,0,1,1)
     data_widget.addWidget(update_progress, r,1,1,2)
     data_widget.addWidget(update_status_label, r+1,0,1,3)
     data_widget.addWidget(restart_button, r+2,0,1,3)
