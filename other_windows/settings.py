@@ -19,6 +19,85 @@ update_thread = None
 
 NO_OVERWRITE_FILES = ["config.conf","credential.env", "instalation_type.info" ]
 
+import filecmp
+
+def update_special_files(INSTALL_DIR=None):
+    import os
+    import shutil
+
+    if not INSTALL_DIR:
+        INSTALL_DIR = os.getcwd()
+
+    updated = []
+
+    src_bin = os.path.join(INSTALL_DIR, "system_files", "open-hub")
+    dest_bin = os.path.expanduser("~/.local/bin/open-hub")
+    if os.path.isfile(src_bin):
+        need_update = True
+        if os.path.isfile(dest_bin):
+            try:
+                with open(src_bin, "rb") as f1, open(dest_bin, "rb") as f2:
+                    if f1.read() == f2.read():
+                        need_update = False
+            except Exception:
+                pass
+        if need_update:
+            os.makedirs(os.path.dirname(dest_bin), exist_ok=True)
+            shutil.copy2(src_bin, dest_bin)
+            os.chmod(dest_bin, 0o755)
+            updated.append(dest_bin)
+
+    src_sysd = os.path.join(INSTALL_DIR, "system_files", "openhub.service")
+    dest_sysd = os.path.expanduser("~/.config/systemd/user/openhub.service")
+    if os.path.isfile(src_sysd):
+        need_update = True
+        if os.path.isfile(dest_sysd):
+            try:
+                with open(src_sysd, "rb") as f1, open(dest_sysd, "rb") as f2:
+                    if f1.read() == f2.read():
+                        need_update = False
+            except Exception:
+                pass
+        if need_update:
+            os.makedirs(os.path.dirname(dest_sysd), exist_ok=True)
+            # --- PATCH: sostituzione template ---
+            with open(src_sysd, "r", encoding="utf-8") as fin:
+                content = fin.read()
+            content = content.replace("{{INSTALL_DIR}}", INSTALL_DIR)
+            content = content.replace("{{PYTHON}}", os.path.join(INSTALL_DIR, "venv", "bin", "python"))
+            with open(dest_sysd, "w", encoding="utf-8") as fout:
+                fout.write(content)
+            updated.append(dest_sysd)
+            os.system("systemctl --user daemon-reload")
+
+    return updated
+
+
+def sync_venv():
+        import os
+        import subprocess
+
+        project_dir = os.getcwd()
+        venv_pip = os.path.join(project_dir, "venv", "bin", "pip")
+        requirements = os.path.join(project_dir, "requirements.txt")
+
+        if not os.path.isfile(venv_pip):
+            return 
+
+        if not os.path.isfile(requirements):
+            return  
+
+        subprocess.call([venv_pip, "install", "--upgrade", "pip"])
+
+        subprocess.call([
+            venv_pip,
+            "install",
+            "--upgrade",
+            "-r",
+            requirements
+        ])
+
+
 class UpdateThread(QThread):
     progress = pyqtSignal(int)
     finished = pyqtSignal(str) 
@@ -27,20 +106,30 @@ class UpdateThread(QThread):
         super().__init__(parent)
         self.install_type = install_type
 
+    
     def run(self):
         import subprocess
         import os, shutil, tempfile, json
 
-        if self.install_type == "main":
+        if self.install_type in ["main", "dev"]:
             try:
+                branch = "main" if self.install_type == "main" else "dev"
                 self.progress.emit(10)
-                subprocess.check_call(['git', 'pull'], cwd=os.getcwd())
-                ver = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], cwd=os.getcwd()).decode().strip()
+                subprocess.check_call(['git', 'checkout', branch], cwd=os.getcwd())
+                subprocess.check_call(['git', 'pull', 'origin', branch], cwd=os.getcwd())
+                sync_venv()
+                after_update = update_special_files()
+                if after_update:
+                    print(f"Special files updated: {after_update}")
+                ver = subprocess.check_output(
+                    ['git', 'rev-parse', '--short', 'HEAD'],
+                    cwd=os.getcwd()
+                ).decode().strip()
             except Exception as e:
                 self.finished.emit(f"Errore aggiornamento: {e}")
                 return
             self.progress.emit(100)
-            self.finished.emit(f"main ({ver})")
+            self.finished.emit(f"{self.install_type} ({ver})")
         elif self.install_type == "stable":
             self.progress.emit(5)
             try:
@@ -82,6 +171,10 @@ class UpdateThread(QThread):
                         shutil.copy2(src, dst)
                 self.progress.emit(90)
                 shutil.rmtree(tmpdir)
+                sync_venv()
+                after_update = update_special_files()
+                if after_update:
+                    print(f"Special files updated: {after_update}")
                 self.progress.emit(100)
                 self.finished.emit(f"stable ({relver})")
             except Exception as e:
@@ -95,7 +188,7 @@ def open_settings_page():
         return os.path.isfile("test.txt")
     data_path = ""
     global settings_window, config, setting_status_label
-    global language, music_widget_status, calendar_widget_status
+    global language, music_widget_status, calendar_widget_status, weather_widget_status
 
     avaible_languages_temp = glob.glob(f"{data_path}lpak/*.lpak")
     avaible_languages = []
@@ -120,13 +213,18 @@ def open_settings_page():
 
     music_widget_status = config.get("Widgets", "Music")
     calendar_widget_status = config.get("Widgets", "Calendar")
+    weather_widget_status = config.get("Widgets", "Weather")
 
     with open("info/instalation_type.info", "r") as f:
-        instalation_type = f.readlines()[0]
+        instalation_type = f.readlines()[0].strip()
         if instalation_type == "main":
-            instalation_type_user = lpak.get("main", language)
+            instalation_type_user = lpak.get("Main", language)
         elif instalation_type == "stable":
-            instalation_type_user = lpak.get("stable",language)
+            instalation_type_user = lpak.get("Stable",language)
+        elif instalation_type == "dev":
+            instalation_type_user = lpak.get("Dev", language)
+        else:
+            instalation_type_user = instalation_type
 
     def get_openhub_version():
         try:
@@ -274,6 +372,28 @@ def open_settings_page():
     else:
         button_setting_calendar.setText(lpak.get("Enable", language))
 
+    def change_weather_widget_status():
+        global weather_widget_status, config
+        set_edited_status()
+        if setting_status(weather_widget_status):
+            val = "Disable"
+            button_setting_weather.setText(lpak.get("Enable", language))
+        else:
+            val = "Enable"
+            button_setting_weather.setText(lpak.get("Disable", language))
+        weather_widget_status = val
+        config.set("Widgets", "Weather", val)
+        write_settings()
+
+    label_weather_widget = QLabel(lpak.get("Weather", language)) 
+    button_setting_weather = QPushButton()
+    button_setting_weather.clicked.connect(change_weather_widget_status)
+    
+    if setting_status(weather_widget_status):
+        button_setting_weather.setText(lpak.get("Disable", language))
+    else:
+        button_setting_weather.setText(lpak.get("Enable", language))  
+
     #label
     setting_status_label = QLabel()
 
@@ -310,13 +430,15 @@ def open_settings_page():
     data_widget.addWidget(button_setting_music, 5, 1, 1, 1)    
     data_widget.addWidget(label_calendar_widget, 6, 0, 1, 1)
     data_widget.addWidget(button_setting_calendar, 6, 1, 1, 1)
+    data_widget.addWidget(label_weather_widget, 7, 0, 1, 1)
+    data_widget.addWidget(button_setting_weather, 7, 1, 1, 1)
     
-    data_widget.addWidget(create_line(), 7, 0, 1, 2)
-    data_widget.addWidget(button_change_language, 8, 0, 1, 2)
+    data_widget.addWidget(create_line(), 8, 0, 1, 2)
+    data_widget.addWidget(button_change_language, 9, 0, 1, 2)
 
 
-    label_title_custom_things=QLabel("Custom component")
-    label_title_custom_widgets=QLabel("Custom label")
+    label_title_custom_things=QLabel(lpak.get("Custom components", language))
+    label_title_custom_widgets=QLabel(lpak.get("Widgets", language))
 
     def change_custom_widget_status(path, status, button):
         if button.text() == lpak.get("Disable", language):
@@ -372,7 +494,7 @@ def open_settings_page():
         data_widget.addWidget(plugin_button, r, 3, 1, 1)
         r = r+1
 
-    bottom_row = max(9, r)
+    bottom_row = max(10, r)
 
     data_widget.addWidget(create_line(), bottom_row, 0, 1, 4)
     data_widget.addWidget(button_edit_credential, bottom_row + 1, 0, 1, 4)
@@ -384,7 +506,7 @@ def open_settings_page():
     update_status_label = QLabel()
     update_status_label.setVisible(False)
 
-    restart_button = QPushButton("Riavvia OpenHUB")
+    restart_button = QPushButton(lpak.get("Restart OpenHUB", language))
     restart_button.setVisible(False)
 
     def on_restart():
@@ -397,7 +519,7 @@ def open_settings_page():
         update_progress.setVisible(True)
         update_progress.setValue(0)
         update_status_label.setVisible(True)
-        update_status_label.setText("Aggiornamento in corso, attendere...")
+        update_status_label.setText(lpak.get("Updating... wait a moment", language))
 
         restart_button.setVisible(False)
         _inst_type = instalation_type.strip()
@@ -405,7 +527,7 @@ def open_settings_page():
         update_thread.progress.connect(update_progress.setValue)
 
         def on_update_finished(msg):
-            update_status_label.setText(f"Aggiornamento terminato: {msg}")
+            update_status_label.setText(f"{lpak.get("Updated finished", language)} {msg}")
             update_progress.setVisible(False)
             restart_button.setVisible(True)
             global update_thread
@@ -414,15 +536,15 @@ def open_settings_page():
         update_thread.finished.connect(on_update_finished)
         update_thread.start()
 
-    start_update_button = QPushButton(text="Aggiorna")
+    start_update_button = QPushButton(text=lpak.get("Update", language))
     start_update_button.clicked.connect(start_update)
-    #version_label=QLabel(f"{instalation_type_user} - {get_openhub_version()}")
+    version_label=QLabel(f"{instalation_type_user} - {get_openhub_version()}")
 
 
 
     r = bottom_row+3 
     data_widget.addWidget(start_update_button, r,0,1,1)
-    #data_widget.addWidget(version_label, r+1,0,1,1)
+    data_widget.addWidget(version_label, r+4,0,1,1)
     data_widget.addWidget(update_progress, r,1,1,2)
     data_widget.addWidget(update_status_label, r+1,0,1,3)
     data_widget.addWidget(restart_button, r+2,0,1,3)

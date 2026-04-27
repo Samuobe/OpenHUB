@@ -48,8 +48,7 @@ def start_cd():
     
     cmd = [
         "cvlc",
-        "cdda://",
-        "--cdrom-device=/dev/sr0",
+        "cdda:///dev/sr0",
         "-I", "telnet",
         "--telnet-password=ciao",
         "--telnet-port=4212",

@@ -26,12 +26,8 @@ Long-term tokens|Long-term tokens
 Bottom left|Bottom left
 Than click|Than click
 Configuration saved!|Configuration saved!
-Energy options|Energy options
-System reboot|System reboot
-System power off|System poweroff
-Close OpenHUB|Close OpenHUB
-Restart OpenHUB|Restart OpenHUB
 Attencion|Attenction
+Weather|Weather
 
 #Buttons
 Stop and return to the home page|Stop and return to the home page
@@ -39,6 +35,11 @@ Close and continue|Close and continue
 Start|Start
 Save configuration|Save configuration
 Close|Close
+Energy options|Energy options
+System reboot|System reboot
+System power off|System poweroff
+Close OpenHUB|Close OpenHUB
+Restart OpenHUB|Restart OpenHUB
 
 
 
@@ -78,6 +79,14 @@ New language|New language
 Default widgets|Default widgets
 Edit services credentials|Edit services credentials
 Close to confirm changes|Close to confirm changes
+Custom components|Custom components
+Widgets|Widgets
+Updating... wait a moment|Updating... wait a moment
+Updated finished|Updated finished
+Update|Update
+Main|Main
+Stable|Stable
+Dev|Dev
 
 #Bluetooth
 Bluetooth settings|Bluetooth settings
@@ -102,3 +111,26 @@ Successfully connected|Successfully connected
 Paired devices|Paired devices
 Disconnecting|Disconnecting
 Successfully disconnected|Successfully disconnected
+
+#Weather
+Clear sky|Clear sky
+Mainly clear|Mainly clear
+Partly cloudy|Partly cloudy
+Overcast|Overcast
+Fog|Fog
+Freezing fog|Freezing fog
+Light drizzle|Light drizzle
+Moderate drizzle|Moderate drizzle
+Dense drizzle|Dense drizzle
+Light rain|Light rain
+Moderate rain|Moderate rain
+Heavy rain|Heavy rain
+Light snow|Light snow
+Moderate snow|Moderate snow
+Heavy snow|Heavy snow
+Light rain showers|Light rain showers
+Moderate rain showers|Moderate rain showers
+Violent rain showers|Violent rain showers
+Thunderstorm|Thunderstorm
+Temperature|Temperature
+Feels-like temperature|Feels-like temperature

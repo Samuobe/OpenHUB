@@ -1,0 +1,3 @@
+#!/bin/bash
+cd "{{INSTALL_DIR}}"
+exec venv/bin/python main.py "$@"

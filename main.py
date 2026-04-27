@@ -16,12 +16,13 @@ data_path = ""
 def check_configuration():
     base_file = "credential_base.env"
     user_file = f"{data_path}credential.env"
+    CONFIG_FILE = "config.conf"
 
     if not os.path.exists(user_file):
         return False
 
     base_config = configparser.ConfigParser()
-    base_config.optionxform = str 
+    base_config.optionxform = str
     base_config.read(base_file)
 
     user_config = configparser.ConfigParser()
@@ -31,13 +32,41 @@ def check_configuration():
     for section in base_config.sections():
         if not user_config.has_section(section):
             return False
-            
         for key in base_config.options(section):
             if not user_config.has_option(section, key):
                 return False
-
             val = user_config.get(section, key).strip()
-            if val == "":
+            if val == "" or val == "*":
+                return False
+
+    # config control
+    if not os.path.exists(CONFIG_FILE):
+        return False 
+
+    DEFAULT_CONFIG = {
+        "User data": {
+            "Language": "English",
+            "AI_model": "*"
+        },
+        "Widgets": {
+            "Music": "Enable",
+            "Calendar": "Enable",
+            "Weather": "Enable"
+        }
+    }
+    
+    config = configparser.ConfigParser()
+    config.optionxform = str
+    config.read(CONFIG_FILE)
+    
+    for section, values in DEFAULT_CONFIG.items():
+        if not config.has_section(section):
+            return False
+        for key in values:
+            if not config.has_option(section, key):
+                return False
+            val = config.get(section, key).strip()
+            if val == "" or val == "*":
                 return False
 
     return True
@@ -59,12 +88,19 @@ if command == "start":
         print("ATTENCTION!!! DON'T USE THIS IF YOU DON'T KNOW WHAT YOU ARE DOING!!!")
         print('USE "open-hub daemon start" TO START OPENHUB')
         print("###################")
+
         if not check_configuration():
             run_setup()
+            if check_configuration():
+                print("Configuration completed, starting OpenHUB...")
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+            else:
+                print("Configuration not completed, exiting.")
+                sys.exit(0)
 
         processi = []
         
-        # --- AVVIO MPRIS-PROXY PER IL BLUETOOTH ---
+        # start mpros for blueooth
         try:
             p_mpris = subprocess.Popen(["mpris-proxy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             processi.append(p_mpris)
@@ -72,7 +108,7 @@ if command == "start":
         except FileNotFoundError:
             print("Warning: mpris-proxy not found. Bluetooth media info will not work.")
 
-        # --- AVVIO SCRIPT PYTHON ---
+        # start python
         files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", "back_process/music_scrobbling.py"]
 
         for file in files:
@@ -143,17 +179,30 @@ elif command == "daemon":
         os.system("systemctl --user restart openhub.service")
 
     elif specific == "help":
-        print("open-hub autostart_____")
-        print("                     |-> enable \tEnable OpenHUB at the login of this user")
-        print("                     |-> disable \tDisable OpenHUB at the login of this user")
-        print("                     |-> status \tSee OpenHUB status in background")
-        print("                     |-> start \tStart OpenHUB in background")
-        print("                     |-> stop \tStop OpenHUB in background")
-        print("                     |-> restart \tRestart OpenHUB")
-        print("                     |-> help\tShow this guide ")
+        print("open-hub daemon _____")
+        print("                   |-> enable \tEnable OpenHUB at the login of this user")
+        print("                   |-> disable \tDisable OpenHUB at the login of this user")
+        print("                   |-> status \tSee OpenHUB status in background")
+        print("                   |-> start \tStart OpenHUB in background")
+        print("                   |-> stop \tStop OpenHUB in background")
+        print("                   |-> restart \tRestart OpenHUB")
+        print("                   |-> help\tShow this guide ")
     else:
         print('Error, invalid autostart arg, use "open-hub autostart help" to see a guide')
 
+elif command == "recovery":
+    try:
+        specific = argv[2]
+    except IndexError:
+        specific = None
+    if specific == "update":
+        os.system("cd ~ && curl -LO https://raw.githubusercontent.com/Samuobe/OpenHUB/main/install.sh && bash install.sh")
+    elif specific == "help":
+        print("open-hub recovery _____")
+        print("                     |-> update \tForce update if GUI doesn' start")
+        print("                     |-> help \tShow this guide")
+    else:
+        print('Error, invalid "recovery" arg, use "open-hub recovery help" for more informations')
 
 elif command == "help":
     print("OpenHUB guide. By: Samuele Oberti")
@@ -166,9 +215,13 @@ elif command == "help":
     print("          |-> daemon ______\tEnable/Disable Autostart\tStart/Stop/Restart Program in background (USE THIS TO START OPNEHUB)")
     print("          |             |-> enable/disable/start/stop/restart")
     print("          |")
+    print("          |-> recovery ______ \tRecovery opstions if OpenHUB fails to start")
+    print("          |              |-> update")
+    print("          |")
     print("          |-> help\tShow this guide ")
     print("")
     print("PLEASE NOTE!!!!! Don't use *start* to use this program normally, use *daemon*")
+    print('Every command have a specific guide, try for example "open-hub recovery help"')
     print("")
 
 else:

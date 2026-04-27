@@ -4,59 +4,121 @@ DEFAULT_INSTALL_DIR="$HOME/.local/share/OpenHUB"
 BIN_DIR="$HOME/.local/bin"
 LOCAL_BIN="$BIN_DIR/open-hub"
 
-setup_autostart() {
-    local EXEC_PATH=$1
+install_user_bin() {
+    local INSTALL_DIR=$1
+    local BIN_DIR="$HOME/.local/bin"
+    local BIN_SRC="$INSTALL_DIR/system_files/open-hub"
+    local BIN_DST="$BIN_DIR/open-hub"
 
-    echo
-    echo "========================================================================"
-    echo " OpenHUB systemd service setup"
-    echo "========================================================================"
+    mkdir -p "$BIN_DIR"
+    sed "s|{{INSTALL_DIR}}|$INSTALL_DIR|g" "$BIN_SRC" > "$BIN_DST"
+    chmod +x "$BIN_DST"
+}
 
-    mkdir -p ~/.config/systemd/user/
+setup_python_env() {
+    local INSTALL_DIR=$1
+    local VENV_DIR="$INSTALL_DIR/venv"
+    local REQUIREMENTS_FILE="$INSTALL_DIR/requirements.txt"
 
-    cat <<EOF > ~/.config/systemd/user/openhub.service
-[Unit]
-Description=OpenHUB - Smart Home Dashboard
-After=network.target graphical-session.target
-Wants=graphical-session.target
+    echo "Setting up Python virtual environment..."
+    if [ ! -d "$VENV_DIR" ]; then
+        python3 -m venv "$VENV_DIR"
+    fi
+    source "$VENV_DIR/bin/activate"
 
-[Service]
-Type=simple
-ExecStart=${EXEC_PATH} start station
-Restart=on-failure
-RestartSec=5
-Environment=DISPLAY=:0
-
-[Install]
-WantedBy=default.target
-EOF
-    systemctl --user daemon-reload
-
-    echo "Service file created successfully."
-    echo
-    echo "Do you want to enable OpenHUB at startup?"
-    echo "Type 'y' for YES"
-    echo "Type 'n' for NO"
-    read -p "Enable automatic startup? (y/n): " setup_systemd
-
-    if [[ "$setup_systemd" =~ ^[Yy]$ ]]; then
-        systemctl --user enable openhub.service
-        echo
-        echo "Autostart ENABLED."
-        echo "To disable and stop it later, use:"
-        echo "  ${EXEC_PATH} daemon stop disable"
-    else
-        echo
-        echo "Autostart NOT enabled."
-        echo "You can enable it later with:"
-        echo "  ${EXEC_PATH} daemon enable"
+    pip install --upgrade pip
+    if [ -f "$REQUIREMENTS_FILE" ]; then
+        echo "Installing dependencies from requirements.txt..."
+        pip install -r "$REQUIREMENTS_FILE"
     fi
 
+    deactivate
+}
+
+setup_autostart() {
+    local INSTALL_DIR=$1
+    local VENV_DIR="$INSTALL_DIR/venv"
+    local SYSTEMD_DIR="$HOME/.config/systemd/user"
+    local SERVICE_FILE_SRC="$INSTALL_DIR/system_files/openhub.service"
+    local SERVICE_FILE_DST="$SYSTEMD_DIR/openhub.service"
+
+    mkdir -p "$SYSTEMD_DIR"
+
+    # copia e sostituisci le variabili
+    sed "s|{{INSTALL_DIR}}|$INSTALL_DIR|g; s|{{PYTHON}}|$VENV_DIR/bin/python|g" "$SERVICE_FILE_SRC" > "$SERVICE_FILE_DST"
+
+    systemctl --user daemon-reload
+
+    read -p "Enable OpenHUB at startup? (y/n): " setup_systemd
+    if [[ "$setup_systemd" =~ ^[Yy]$ ]]; then
+        systemctl --user unmask openhub.service 2>/dev/null # toglie eventuale mask vecchia
+        systemctl --user enable openhub.service
+        echo "Autostart ENABLED."
+    else
+        echo "Autostart NOT enabled."
+    fi
+}
+
+
+install_dev() {
+    echo "Installing OpenHUB DEV version (dev branch)..."
     echo
-    echo "Configuration finished."
-    echo "To start OpenHUB manually, run:"
-    echo "  ${EXEC_PATH} daemon start"
-    echo
+
+    local INSTALL_TYPE="dev"
+
+    read -p "Enter installation directory (Default: $DEFAULT_INSTALL_DIR): " user_dir
+    local INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+    if [[ -n "$user_dir" ]]; then
+        user_dir="${user_dir/#\~/$HOME}"
+        if [[ "$user_dir" != /* ]]; then
+            user_dir="$PWD/$user_dir"
+        fi
+        INSTALL_DIR="$user_dir"
+    fi
+
+    local INFO_DIR="$INSTALL_DIR/info"
+
+    if [ ! -d "$INSTALL_DIR" ]; then
+        if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+            echo "Requires root privileges to create directory '$INSTALL_DIR'..."
+            sudo mkdir -p "$INSTALL_DIR"
+            sudo chown -R "$USER:$USER" "$INSTALL_DIR"
+        fi
+    else
+        if [ ! -w "$INSTALL_DIR" ]; then
+            echo "Requires root privileges to gain write access to '$INSTALL_DIR'..."
+            sudo chown -R "$USER:$USER" "$INSTALL_DIR"
+        fi
+    fi
+
+    mkdir -p "$BIN_DIR"
+
+    if [ -d "$INSTALL_DIR/.git" ]; then
+        echo "Updating existing OpenHUB DEV repository..."
+        cd "$INSTALL_DIR" || exit
+        git fetch --all
+        git checkout dev
+        git pull origin dev
+    else
+        echo "Cloning OpenHUB repository (dev branch)..."
+        git clone -b dev https://github.com/samuobe/OpenHUB.git "$INSTALL_DIR"
+    fi
+    
+    setup_python_env "$INSTALL_DIR"
+    write_info_file "$INSTALL_TYPE" "$INFO_DIR"
+
+    cd "$INSTALL_DIR"
+    COMMIT_VERSION=$(git rev-parse --short HEAD 2>/dev/null || echo "NO_GIT")
+    echo "OpenHUB DEV version: $COMMIT_VERSION"
+
+    if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+        echo "WARNING: $BIN_DIR is not in your PATH. Please add it."
+    fi
+
+
+    setup_python_env "$INSTALL_DIR"
+    install_user_bin "$INSTALL_DIR"
+    setup_autostart "$INSTALL_DIR"
 }
 
 common_setup(){
@@ -135,12 +197,7 @@ install_standard() {
 
         write_info_file "$INSTALL_TYPE" "$INFO_DIR"
 
-        cat <<EOF > "$LOCAL_BIN"
-#!/bin/bash
-cd "$INSTALL_DIR"
-python3 main.py "\$@"
-EOF
-        chmod +x "$LOCAL_BIN"
+
 
         echo "OpenHUB STABLE version installed: $REL_VER"
     else
@@ -172,8 +229,9 @@ EOF
     if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
         echo "WARNING: $BIN_DIR is not in your PATH. Please add it to your ~/.bashrc or ~/.zshrc."
     fi
-
-    common_setup "$LOCAL_BIN"
+    setup_python_env "$INSTALL_DIR"
+    install_user_bin "$INSTALL_DIR"
+    setup_autostart "$INSTALL_DIR"
 }
 
 echo "Welcome to the OpenHUB installation program!"
@@ -214,6 +272,8 @@ elif [[ "$action" == "2" ]]; then
     rm -f "$LOCAL_BIN" 2>/dev/null
 
     echo "FINISHED!"
+elif [[ "$action" == "5" ]]; then
+    install_dev
 fi
 
 rm -- "$0"
