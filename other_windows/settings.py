@@ -105,17 +105,16 @@ class UpdateThread(QThread):
         import subprocess
         import os, shutil, tempfile, json
 
-        if self.install_type == "main":
+        if self.install_type in ["main", "dev"]:
             try:
+                branch = "main" if self.install_type == "main" else "dev"
                 self.progress.emit(10)
-                
-                subprocess.check_call(['git', 'pull'], cwd=os.getcwd())
-
+                subprocess.check_call(['git', 'checkout', branch], cwd=os.getcwd())
+                subprocess.check_call(['git', 'pull', 'origin', branch], cwd=os.getcwd())
                 sync_venv()
                 after_update = update_special_files()
                 if after_update:
                     print(f"Special files updated: {after_update}")
-
                 ver = subprocess.check_output(
                     ['git', 'rev-parse', '--short', 'HEAD'],
                     cwd=os.getcwd()
@@ -124,32 +123,7 @@ class UpdateThread(QThread):
                 self.finished.emit(f"Errore aggiornamento: {e}")
                 return
             self.progress.emit(100)
-            self.finished.emit(f"main ({ver})")
-        elif self.install_type == "dev":
-            try:
-                self.progress.emit(10)
-                subprocess.check_call(['git', 'checkout', 'dev'], cwd=os.getcwd())
-                subprocess.check_call(['git', 'pull', 'origin', 'dev'], cwd=os.getcwd())
-
-                sync_venv()
-                after_update = update_special_files()
-                if after_update:
-                    print(f"Special files updated: {after_update}")
-
-                ver = subprocess.check_output(
-                    ['git', 'rev-parse', '--short', 'HEAD'],
-                    cwd=os.getcwd()
-                ).decode().strip()
-                ver = subprocess.check_output(
-                    ['git', 'rev-parse', '--short', 'HEAD'],
-                    cwd=os.getcwd()
-                ).decode().strip()
-            except Exception as e:
-                self.finished.emit(f"Errore aggiornamento: {e}")
-                return
-
-            self.progress.emit(100)
-            self.finished.emit(f"dev ({ver})")
+            self.finished.emit(f"{self.install_type} ({ver})")
         elif self.install_type == "stable":
             self.progress.emit(5)
             try:
