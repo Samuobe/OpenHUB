@@ -60,7 +60,13 @@ def update_special_files(INSTALL_DIR=None):
                 pass
         if need_update:
             os.makedirs(os.path.dirname(dest_sysd), exist_ok=True)
-            shutil.copy2(src_sysd, dest_sysd)
+            # --- PATCH: sostituzione template ---
+            with open(src_sysd, "r", encoding="utf-8") as fin:
+                content = fin.read()
+            content = content.replace("{{INSTALL_DIR}}", INSTALL_DIR)
+            content = content.replace("{{PYTHON}}", os.path.join(INSTALL_DIR, "venv", "bin", "python"))
+            with open(dest_sysd, "w", encoding="utf-8") as fout:
+                fout.write(content)
             updated.append(dest_sysd)
             os.system("systemctl --user daemon-reload")
 
