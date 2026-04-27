@@ -87,21 +87,31 @@ def check_configuration():
         with open(CONFIG_FILE, "w") as f:
             config.write(f)
 
-    for section in base_config.sections():
-        if not user_config.has_section(section):
-            return False
-
-        for key in base_config.options(section):
-            if not user_config.has_option(section, key):
+        for section in base_config.sections():
+            if not user_config.has_section(section):
+                print(f"Manca la sezione '{section}' in credential.env")
+                run_setup()
                 return False
 
-            val = user_config.get(section, key).strip()
+            for key in base_config.options(section):
+                if not user_config.has_option(section, key):
+                    print(f"Manca la chiave '{key}' nella sezione '{section}' di credential.env")
+                    run_setup()
+                    return False
 
-            if val == "":
-                return False
+                val = user_config.get(section, key).strip()
 
-            if val == "*":
-                return False
+                if val == "":
+                    print(f"Valore vuoto per '{key}' nella sezione '{section}'")
+                    run_setup()
+                    return False
+
+                if val == "*":
+                    print(f"Valore placeholder per '{key}' nella sezione '{section}'")
+                    run_setup()
+                    return False
+
+
 
     return True
 
