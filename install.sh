@@ -4,89 +4,62 @@ DEFAULT_INSTALL_DIR="$HOME/.local/share/OpenHUB"
 BIN_DIR="$HOME/.local/bin"
 LOCAL_BIN="$BIN_DIR/open-hub"
 
+install_user_bin() {
+    local INSTALL_DIR=$1
+    local BIN_DIR="$HOME/.local/bin"
+    local BIN_SRC="$INSTALL_DIR/system_files/open-hub"
+    local BIN_DST="$BIN_DIR/open-hub"
+
+    mkdir -p "$BIN_DIR"
+    sed "s|{{INSTALL_DIR}}|$INSTALL_DIR|g" "$BIN_SRC" > "$BIN_DST"
+    chmod +x "$BIN_DST"
+}
+
 setup_python_env() {
     local INSTALL_DIR=$1
     local VENV_DIR="$INSTALL_DIR/venv"
     local REQUIREMENTS_FILE="$INSTALL_DIR/requirements.txt"
 
-    echo
     echo "Setting up Python virtual environment..."
-
-    # crea venv se non esiste
     if [ ! -d "$VENV_DIR" ]; then
         python3 -m venv "$VENV_DIR"
     fi
-
-    # attiva venv
     source "$VENV_DIR/bin/activate"
 
-    # aggiorna pip
     pip install --upgrade pip
-
-    # installa requirements se esiste
     if [ -f "$REQUIREMENTS_FILE" ]; then
         echo "Installing dependencies from requirements.txt..."
         pip install -r "$REQUIREMENTS_FILE"
-    else
-        echo "No requirements.txt found."
     fi
 
     deactivate
 }
 
 setup_autostart() {
-    local EXEC_PATH=$1
+    local INSTALL_DIR=$1
+    local VENV_DIR="$INSTALL_DIR/venv"
+    local SYSTEMD_DIR="$HOME/.config/systemd/user"
+    local SERVICE_FILE_SRC="$INSTALL_DIR/system_files/openhub.service"
+    local SERVICE_FILE_DST="$SYSTEMD_DIR/openhub.service"
 
-    echo
-    echo "========================================================================"
-    echo " OpenHUB systemd service setup"
-    echo "========================================================================"
+    mkdir -p "$SYSTEMD_DIR"
 
-    mkdir -p ~/.config/systemd/user/
+    # copia e sostituisci le variabili
+    sed "s|{{INSTALL_DIR}}|$INSTALL_DIR|g; s|{{PYTHON}}|$VENV_DIR/bin/python|g" "$SERVICE_FILE_SRC" > "$SERVICE_FILE_DST"
 
-    cat <<EOF > ~/.config/systemd/user/openhub.service
-[Unit]
-Description=OpenHUB - Smart Home Dashboard
-After=network.target graphical-session.target
-Wants=graphical-session.target
-
-[Service]
-Type=simple
-ExecStart=${EXEC_PATH} start station
-Restart=on-failure
-RestartSec=5
-Environment=DISPLAY=:0
-
-[Install]
-WantedBy=default.target
-EOF
     systemctl --user daemon-reload
 
-    echo "Service file created successfully."
-    echo
-    echo "Do you want to enable OpenHUB at startup?"
-    echo "Type 'y' for YES"
-    echo "Type 'n' for NO"
-    read -p "Enable automatic startup? (y/n): " setup_systemd
-
+    read -p "Enable OpenHUB at startup? (y/n): " setup_systemd
     if [[ "$setup_systemd" =~ ^[Yy]$ ]]; then
         systemctl --user enable openhub.service
-        echo
         echo "Autostart ENABLED."
-        echo "To disable and stop it later, use:"
-        echo "  ${EXEC_PATH} daemon stop disable"
     else
-        echo
         echo "Autostart NOT enabled."
-        echo "You can enable it later with:"
-        echo "  ${EXEC_PATH} daemon enable"
     fi
 
-    echo
-    echo "Configuration finished."
-    echo "To start OpenHUB manually, run:"
-    echo "  ${EXEC_PATH} daemon start"
-    echo
+    setup_python_env "$INSTALL_DIR"
+    install_user_bin "$INSTALL_DIR"
+    setup_autostart "$INSTALL_DIR"
 }
 
 install_dev() {
@@ -135,13 +108,6 @@ install_dev() {
     
     setup_python_env "$INSTALL_DIR"
     write_info_file "$INSTALL_TYPE" "$INFO_DIR"
-
-    cat <<EOF > "$LOCAL_BIN"
-#!/bin/bash
-cd "$INSTALL_DIR"
-python3 main.py "\$@"
-EOF
-    chmod +x "$LOCAL_BIN"
 
     cd "$INSTALL_DIR"
     COMMIT_VERSION=$(git rev-parse --short HEAD 2>/dev/null || echo "NO_GIT")
@@ -230,13 +196,7 @@ install_standard() {
 
         write_info_file "$INSTALL_TYPE" "$INFO_DIR"
 
-        cat <<EOF > "$LOCAL_BIN"
-#!/bin/bash
-cd "$INSTALL_DIR"
-source venv/bin/activate
-python main.py "$@"
-EOF
-        chmod +x "$LOCAL_BIN"
+
 
         echo "OpenHUB STABLE version installed: $REL_VER"
     else

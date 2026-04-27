@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenHUB - Smart Home Dashboard
+After=network.target graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory={{INSTALL_DIR}}
+ExecStart={{PYTHON}} main.py start station
+Restart=on-failure
+RestartSec=5
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=default.target

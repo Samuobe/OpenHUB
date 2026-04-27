@@ -1,0 +1,4 @@
+#!/bin/bash
+cd "{{INSTALL_DIR}}"
+source venv/bin/activate
+exec venv/bin/python main.py "$@"
