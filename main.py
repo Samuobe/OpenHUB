@@ -179,17 +179,30 @@ elif command == "daemon":
         os.system("systemctl --user restart openhub.service")
 
     elif specific == "help":
-        print("open-hub autostart_____")
-        print("                     |-> enable \tEnable OpenHUB at the login of this user")
-        print("                     |-> disable \tDisable OpenHUB at the login of this user")
-        print("                     |-> status \tSee OpenHUB status in background")
-        print("                     |-> start \tStart OpenHUB in background")
-        print("                     |-> stop \tStop OpenHUB in background")
-        print("                     |-> restart \tRestart OpenHUB")
-        print("                     |-> help\tShow this guide ")
+        print("open-hub daemon _____")
+        print("                   |-> enable \tEnable OpenHUB at the login of this user")
+        print("                   |-> disable \tDisable OpenHUB at the login of this user")
+        print("                   |-> status \tSee OpenHUB status in background")
+        print("                   |-> start \tStart OpenHUB in background")
+        print("                   |-> stop \tStop OpenHUB in background")
+        print("                   |-> restart \tRestart OpenHUB")
+        print("                   |-> help\tShow this guide ")
     else:
         print('Error, invalid autostart arg, use "open-hub autostart help" to see a guide')
 
+elif command == "recovery":
+    try:
+        specific = argv[2]
+    except IndexError:
+        specific = None
+    if specific == "update":
+        os.system("cd ~ && curl -LO https://raw.githubusercontent.com/Samuobe/OpenHUB/main/install.sh && bash install.sh")
+    elif specific == "help":
+        print("open-hub recovery _____")
+        print("                     |-> update \tForce update if GUI doesn' start")
+        print("                     |-> help \tShow this guide")
+    else:
+        print('Error, invalid "recovery" arg, use "open-hub recovery help" for more informations')
 
 elif command == "help":
     print("OpenHUB guide. By: Samuele Oberti")
@@ -202,9 +215,13 @@ elif command == "help":
     print("          |-> daemon ______\tEnable/Disable Autostart\tStart/Stop/Restart Program in background (USE THIS TO START OPNEHUB)")
     print("          |             |-> enable/disable/start/stop/restart")
     print("          |")
+    print("          |-> recovery ______ \tRecovery opstions if OpenHUB fails to start")
+    print("          |              |-> update")
+    print("          |")
     print("          |-> help\tShow this guide ")
     print("")
     print("PLEASE NOTE!!!!! Don't use *start* to use this program normally, use *daemon*")
+    print('Every command have a specific guide, try for example "open-hub recovery help"')
     print("")
 
 else:
