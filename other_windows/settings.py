@@ -19,15 +19,55 @@ update_thread = None
 
 NO_OVERWRITE_FILES = ["config.conf","credential.env", "instalation_type.info" ]
 
-class UpdateThread(QThread):
-    progress = pyqtSignal(int)
-    finished = pyqtSignal(str) 
+import filecmp
 
-    def __init__(self, install_type, parent=None):
-        super().__init__(parent)
-        self.install_type = install_type
+def update_special_files(INSTALL_DIR=None):
+    import os
+    import shutil
 
-    def sync_venv():
+    if not INSTALL_DIR:
+        INSTALL_DIR = os.getcwd()
+
+    updated = []
+
+    src_bin = os.path.join(INSTALL_DIR, "system_files", "open-hub")
+    dest_bin = os.path.expanduser("~/.local/bin/open-hub")
+    if os.path.isfile(src_bin):
+        need_update = True
+        if os.path.isfile(dest_bin):
+            try:
+                with open(src_bin, "rb") as f1, open(dest_bin, "rb") as f2:
+                    if f1.read() == f2.read():
+                        need_update = False
+            except Exception:
+                pass
+        if need_update:
+            os.makedirs(os.path.dirname(dest_bin), exist_ok=True)
+            shutil.copy2(src_bin, dest_bin)
+            os.chmod(dest_bin, 0o755)
+            updated.append(dest_bin)
+
+    src_sysd = os.path.join(INSTALL_DIR, "system_files", "openhub.service")
+    dest_sysd = os.path.expanduser("~/.config/systemd/user/openhub.service")
+    if os.path.isfile(src_sysd):
+        need_update = True
+        if os.path.isfile(dest_sysd):
+            try:
+                with open(src_sysd, "rb") as f1, open(dest_sysd, "rb") as f2:
+                    if f1.read() == f2.read():
+                        need_update = False
+            except Exception:
+                pass
+        if need_update:
+            os.makedirs(os.path.dirname(dest_sysd), exist_ok=True)
+            shutil.copy2(src_sysd, dest_sysd)
+            updated.append(dest_sysd)
+            os.system("systemctl --user daemon-reload")
+
+    return updated
+
+
+def sync_venv():
         import os
         import subprocess
 
@@ -51,6 +91,16 @@ class UpdateThread(QThread):
             requirements
         ])
 
+
+class UpdateThread(QThread):
+    progress = pyqtSignal(int)
+    finished = pyqtSignal(str) 
+
+    def __init__(self, install_type, parent=None):
+        super().__init__(parent)
+        self.install_type = install_type
+
+    
     def run(self):
         import subprocess
         import os, shutil, tempfile, json
@@ -62,6 +112,9 @@ class UpdateThread(QThread):
                 subprocess.check_call(['git', 'pull'], cwd=os.getcwd())
 
                 sync_venv()
+                after_update = update_special_files()
+                if after_update:
+                    print(f"Special files updated: {after_update}")
 
                 ver = subprocess.check_output(
                     ['git', 'rev-parse', '--short', 'HEAD'],
@@ -79,6 +132,9 @@ class UpdateThread(QThread):
                 subprocess.check_call(['git', 'pull', 'origin', 'dev'], cwd=os.getcwd())
 
                 sync_venv()
+                after_update = update_special_files()
+                if after_update:
+                    print(f"Special files updated: {after_update}")
 
                 ver = subprocess.check_output(
                     ['git', 'rev-parse', '--short', 'HEAD'],
@@ -136,6 +192,9 @@ class UpdateThread(QThread):
                 self.progress.emit(90)
                 shutil.rmtree(tmpdir)
                 sync_venv()
+                after_update = update_special_files()
+                if after_update:
+                    print(f"Special files updated: {after_update}")
                 self.progress.emit(100)
                 self.finished.emit(f"stable ({relver})")
             except Exception as e:
