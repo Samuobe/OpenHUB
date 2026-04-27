@@ -27,6 +27,7 @@ Bottom left|In basso a sinistra
 Than click|Quindi clicca
 Configuration saved!|Configurazione salvata!
 Attencion|Attenzione
+Weather|Meteo
 
 #Buttons
 Stop and return to the home page|Ferma e torna alla home
@@ -110,3 +111,26 @@ Successfully connected|Connesso con successo
 Paired devices|Dispositiv associati
 Disconnecting|Disconnessione
 Successfully disconnected|Disconnesso con successo
+
+#Weather
+Clear sky|Cielo sereno
+Mainly clear|Prevalentemente sereno
+Partly cloudy|Parzialmente nuvoloso
+Overcast|Coperto
+Fog|Nebbia
+Freezing fog|Nebbia ghiacciata
+Light drizzle|Pioggerellina leggera
+Moderate drizzle|Pioggerellina moderata
+Dense drizzle|Pioggerellina fitta
+Light rain|Pioggia leggera
+Moderate rain|Pioggia moderata
+Heavy rain|Pioggia forte
+Light snow|Neve leggera
+Moderate snow|Neve moderata
+Heavy snow|Neve forte
+Light rain showers|Rovesci di pioggia leggeri
+Moderate rain showers|Rovesci di pioggia moderati
+Violent rain showers|Rovesci di pioggia violenti
+Thunderstorm|Temporale
+Temperature|Temperatura
+Feels-like temperature|Temperatura percepita

@@ -22,6 +22,14 @@ language_code = get_language_code.get(language)
 
 music_widget_status = config.get("Widgets", "Music")
 calendar_widget_status = config.get("Widgets", "Calendar")
+weather_widget_status = config.get("Widgets", "Weather")
+
+#Load credential
+config_credential =configparser.ConfigParser()
+config_credential.optionxform = str
+config_credential.read(f"{data_path}credential.env")
+city = config_credential.get("Device info", "city")
+
 
 def setting_status(a):
     if a=="Enable":
@@ -597,7 +605,7 @@ from PyQt6.QtWidgets import QLabel, QPushButton, QScrollArea, QFrame, QMenu
 import re
 import requests
 from Lattuga.lattuga import voice_input, Lattuga, manual_input
-from Lattuga.tools import get_events
+from Lattuga.tools import get_events, get_weather
 from other_windows.app_store import open_store_page
 import subprocess
 from functions.mpv_status import is_mpv_running
@@ -893,9 +901,88 @@ def create_calendar_widget():
     title_event_label.setStyleSheet("font: bold")
     calendar_layout.addWidget(title_event_label, 0, 0, 1, 2)
     calendar_container.setLayout(calendar_layout)
-create_calendar_widget()
+if setting_status(calendar_widget_status):
+    create_calendar_widget()
 
 #Wheater
+weather_container, weather_layout = None, None
+
+def create_weather_widget():    
+    global weather_container, weather_layout
+
+    def get_weather_text(weather):
+        weather_translation=lpak.get(weather, language)
+        if weather == "Clear sky":
+            emoji = "☀️"
+        elif weather == "Mainly clear":
+            emoji = "🌤️"
+        elif weather == "Partly cloudy":
+            emoji = "⛅"
+        elif weather == "Overcast":
+            emoji = "☁️"
+        elif weather == "Fog":
+            emoji = "🌫️"
+        elif weather == "Freezing fog":
+            emoji = "❄️🌫️"
+        elif weather == "Light drizzle":
+            emoji = "🌦️"
+        elif weather == "Moderate drizzle":
+            emoji = "🌧️"
+        elif weather == "Dense drizzle":
+            emoji = "🌧️"
+        elif weather == "Light rain":
+            emoji = "🌦️"
+        elif weather == "Moderate rain":
+            emoji = "🌧️"
+        elif weather == "Heavy rain":
+            emoji = "🌧️"
+        elif weather == "Light snow":
+            emoji = "🌨️"
+        elif weather == "Moderate snow":
+            emoji = "❄️"
+        elif weather == "Heavy snow":
+            emoji = "☃️"
+        elif weather == "Light rain showers":
+            emoji = "🌦️"
+        elif weather == "Moderate rain showers":
+            emoji = "🌧️"
+        elif weather == "Violent rain showers":
+            emoji = "⛈️"
+        elif weather == "Thunderstorm":
+            emoji = "⚡"
+        return f"{weather_translation} - {emoji}"
+    
+    h=time_now = datetime.datetime.now().strftime("%H")   
+    weather_data = get_weather(city, 0, int(h)+1)
+    temperature=weather_data["temperature"]
+    apparent_temperature=weather_data["apparent_temperature"]
+    weather=weather_data["weather"]
+    weather = get_weather_text(weather)
+
+    
+    weather_container = QWidget()
+    weather_container.setStyleSheet(style_widget)
+
+    
+    weather_layout = QGridLayout(weather_container)
+
+    weather_label = QLabel(weather)
+    weather_label.setStyleSheet("""
+        font-size: 30pt; 
+        font-weight: bold; 
+        font-style: italic;
+    """)
+    weather_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    temperaute_label = QLabel(f"{lpak.get("Temperature", language)}: {temperature} - {lpak.get("Feels-like temperature", language)}: {apparent_temperature}")
+    temperaute_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    
+    weather_layout.addWidget(weather_label, 0, 0)
+    weather_layout.addWidget(temperaute_label, 1, 0)
+
+if setting_status(weather_widget_status):
+    create_weather_widget()
+
 
 
 
@@ -919,6 +1006,9 @@ if setting_status(music_widget_status):
     control_coordinate()
 if setting_status(calendar_widget_status):
     data_widget.addWidget(calendar_container, line, column)
+    control_coordinate()
+if setting_status(weather_widget_status):
+    data_widget.addWidget(weather_container, line, column)
     control_coordinate()
 
 

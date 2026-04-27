@@ -149,7 +149,7 @@ def open_settings_page():
         return os.path.isfile("test.txt")
     data_path = ""
     global settings_window, config, setting_status_label
-    global language, music_widget_status, calendar_widget_status
+    global language, music_widget_status, calendar_widget_status, weather_widget_status
 
     avaible_languages_temp = glob.glob(f"{data_path}lpak/*.lpak")
     avaible_languages = []
@@ -174,6 +174,7 @@ def open_settings_page():
 
     music_widget_status = config.get("Widgets", "Music")
     calendar_widget_status = config.get("Widgets", "Calendar")
+    weather_widget_status = config.get("Widgets", "Weather")
 
     with open("info/instalation_type.info", "r") as f:
         instalation_type = f.readlines()[0].strip()
@@ -332,6 +333,28 @@ def open_settings_page():
     else:
         button_setting_calendar.setText(lpak.get("Enable", language))
 
+    def change_weather_widget_status():
+        global weather_widget_status, config
+        set_edited_status()
+        if setting_status(weather_widget_status):
+            val = "Disable"
+            button_setting_weather.setText(lpak.get("Enable", language))
+        else:
+            val = "Enable"
+            button_setting_weather.setText(lpak.get("Disable", language))
+        weather_widget_status = val
+        config.set("Widgets", "Weather", val)
+        write_settings()
+
+    label_weather_widget = QLabel(lpak.get("Weather", language)) 
+    button_setting_weather = QPushButton()
+    button_setting_weather.clicked.connect(change_weather_widget_status)
+    
+    if setting_status(weather_widget_status):
+        button_setting_weather.setText(lpak.get("Disable", language))
+    else:
+        button_setting_weather.setText(lpak.get("Enable", language))  
+
     #label
     setting_status_label = QLabel()
 
@@ -368,9 +391,11 @@ def open_settings_page():
     data_widget.addWidget(button_setting_music, 5, 1, 1, 1)    
     data_widget.addWidget(label_calendar_widget, 6, 0, 1, 1)
     data_widget.addWidget(button_setting_calendar, 6, 1, 1, 1)
+    data_widget.addWidget(label_weather_widget, 7, 0, 1, 1)
+    data_widget.addWidget(button_setting_weather, 7, 1, 1, 1)
     
-    data_widget.addWidget(create_line(), 7, 0, 1, 2)
-    data_widget.addWidget(button_change_language, 8, 0, 1, 2)
+    data_widget.addWidget(create_line(), 8, 0, 1, 2)
+    data_widget.addWidget(button_change_language, 9, 0, 1, 2)
 
 
     label_title_custom_things=QLabel(lpak.get("Custom components", language))
@@ -430,7 +455,7 @@ def open_settings_page():
         data_widget.addWidget(plugin_button, r, 3, 1, 1)
         r = r+1
 
-    bottom_row = max(9, r)
+    bottom_row = max(10, r)
 
     data_widget.addWidget(create_line(), bottom_row, 0, 1, 4)
     data_widget.addWidget(button_edit_credential, bottom_row + 1, 0, 1, 4)
@@ -480,7 +505,7 @@ def open_settings_page():
 
     r = bottom_row+3 
     data_widget.addWidget(start_update_button, r,0,1,1)
-    data_widget.addWidget(version_label, r+1,0,1,1)
+    data_widget.addWidget(version_label, r+4,0,1,1)
     data_widget.addWidget(update_progress, r,1,1,2)
     data_widget.addWidget(update_status_label, r+1,0,1,3)
     data_widget.addWidget(restart_button, r+2,0,1,3)

@@ -27,6 +27,7 @@ Bottom left|Bottom left
 Than click|Than click
 Configuration saved!|Configuration saved!
 Attencion|Attenction
+Weather|Weather
 
 #Buttons
 Stop and return to the home page|Stop and return to the home page
@@ -87,7 +88,6 @@ Main|Main
 Stable|Stable
 Dev|Dev
 
-
 #Bluetooth
 Bluetooth settings|Bluetooth settings
 Show unknow devices|Show unknow devices
@@ -111,3 +111,26 @@ Successfully connected|Successfully connected
 Paired devices|Paired devices
 Disconnecting|Disconnecting
 Successfully disconnected|Successfully disconnected
+
+#Weather
+Clear sky|Clear sky
+Mainly clear|Mainly clear
+Partly cloudy|Partly cloudy
+Overcast|Overcast
+Fog|Fog
+Freezing fog|Freezing fog
+Light drizzle|Light drizzle
+Moderate drizzle|Moderate drizzle
+Dense drizzle|Dense drizzle
+Light rain|Light rain
+Moderate rain|Moderate rain
+Heavy rain|Heavy rain
+Light snow|Light snow
+Moderate snow|Moderate snow
+Heavy snow|Heavy snow
+Light rain showers|Light rain showers
+Moderate rain showers|Moderate rain showers
+Violent rain showers|Violent rain showers
+Thunderstorm|Thunderstorm
+Temperature|Temperature
+Feels-like temperature|Feels-like temperature
