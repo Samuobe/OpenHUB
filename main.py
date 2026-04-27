@@ -18,19 +18,17 @@ def check_configuration():
     user_file = f"{data_path}credential.env"
     CONFIG_FILE = "config.conf"
 
-    # Se il file principale non esiste, config obbligatoria
     if not os.path.exists(user_file):
         return False
 
-    # Leggi la base e l'utente
     base_config = configparser.ConfigParser()
     base_config.optionxform = str
     base_config.read(base_file)
+
     user_config = configparser.ConfigParser()
     user_config.optionxform = str
     user_config.read(user_file)
 
-    # Se manca una sezione o una chiave, torna False
     for section in base_config.sections():
         if not user_config.has_section(section):
             return False
@@ -38,11 +36,13 @@ def check_configuration():
             if not user_config.has_option(section, key):
                 return False
             val = user_config.get(section, key).strip()
-            # Se è vuoto o placeholder, torna False
             if val == "" or val == "*":
                 return False
 
-    # Per massima sicurezza, puoi aggiungere (opzionale) controllo su config.conf come facevi tu
+    # config control
+    if not os.path.exists(CONFIG_FILE):
+        return False 
+
     DEFAULT_CONFIG = {
         "User data": {
             "Language": "English",
@@ -54,19 +54,20 @@ def check_configuration():
             "Weather": "Enable"
         }
     }
+    
     config = configparser.ConfigParser()
     config.optionxform = str
-    if os.path.exists(CONFIG_FILE):
-        config.read(CONFIG_FILE)
-        for section, values in DEFAULT_CONFIG.items():
-            if not config.has_section(section):
+    config.read(CONFIG_FILE)
+    
+    for section, values in DEFAULT_CONFIG.items():
+        if not config.has_section(section):
+            return False
+        for key in values:
+            if not config.has_option(section, key):
                 return False
-            for key in values:
-                if not config.has_option(section, key):
-                    return False
-                val = config.get(section, key).strip()
-                if val == "" or val == "*":
-                    return False
+            val = config.get(section, key).strip()
+            if val == "" or val == "*":
+                return False
 
     return True
 
@@ -87,6 +88,7 @@ if command == "start":
         print("ATTENCTION!!! DON'T USE THIS IF YOU DON'T KNOW WHAT YOU ARE DOING!!!")
         print('USE "open-hub daemon start" TO START OPENHUB')
         print("###################")
+
         if not check_configuration():
             run_setup()
             if check_configuration():
@@ -94,7 +96,7 @@ if command == "start":
                 os.execv(sys.executable, [sys.executable] + sys.argv)
             else:
                 print("Configuration not completed, exiting.")
-            sys.exit(0)  
+                sys.exit(0)
 
         processi = []
         
