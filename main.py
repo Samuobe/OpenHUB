@@ -18,35 +18,31 @@ def check_configuration():
     user_file = f"{data_path}credential.env"
     CONFIG_FILE = "config.conf"
 
+    # Se il file principale non esiste, config obbligatoria
+    if not os.path.exists(user_file):
+        return False
+
+    # Leggi la base e l'utente
     base_config = configparser.ConfigParser()
     base_config.optionxform = str
     base_config.read(base_file)
-
     user_config = configparser.ConfigParser()
     user_config.optionxform = str
+    user_config.read(user_file)
 
-    if os.path.exists(user_file):
-        user_config.read(user_file)
-    else:
-        open(user_file, "w").close()
-
-    updated_user = False
-
+    # Se manca una sezione o una chiave, torna False
     for section in base_config.sections():
         if not user_config.has_section(section):
-            user_config.add_section(section)
-            updated_user = True
-
+            return False
         for key in base_config.options(section):
             if not user_config.has_option(section, key):
-                default_val = base_config.get(section, key, fallback="*")
-                user_config.set(section, key, default_val)
-                updated_user = True
+                return False
+            val = user_config.get(section, key).strip()
+            # Se è vuoto o placeholder, torna False
+            if val == "" or val == "*":
+                return False
 
-    if updated_user:
-        with open(user_file, "w") as f:
-            user_config.write(f)
-
+    # Per massima sicurezza, puoi aggiungere (opzionale) controllo su config.conf come facevi tu
     DEFAULT_CONFIG = {
         "User data": {
             "Language": "English",
@@ -58,60 +54,19 @@ def check_configuration():
             "Weather": "Enable"
         }
     }
-
     config = configparser.ConfigParser()
     config.optionxform = str
-
     if os.path.exists(CONFIG_FILE):
         config.read(CONFIG_FILE)
-
-    updated_main = False
-
-    for section, values in DEFAULT_CONFIG.items():
-        if not config.has_section(section):
-            return False
-
-        for key in values:
-            if not config.has_option(section, key):
+        for section, values in DEFAULT_CONFIG.items():
+            if not config.has_section(section):
                 return False
-
-            val = config.get(section, key).strip()
-
-            if val == "":
-                return False
-
-            if val == "*":
-                return False
-
-    if updated_main:
-        with open(CONFIG_FILE, "w") as f:
-            config.write(f)
-
-        for section in base_config.sections():
-            if not user_config.has_section(section):
-                print(f"Manca la sezione '{section}' in credential.env")
-                run_setup()
-                return False
-
-            for key in base_config.options(section):
-                if not user_config.has_option(section, key):
-                    print(f"Manca la chiave '{key}' nella sezione '{section}' di credential.env")
-                    run_setup()
+            for key in values:
+                if not config.has_option(section, key):
                     return False
-
-                val = user_config.get(section, key).strip()
-
-                if val == "":
-                    print(f"Valore vuoto per '{key}' nella sezione '{section}'")
-                    run_setup()
+                val = config.get(section, key).strip()
+                if val == "" or val == "*":
                     return False
-
-                if val == "*":
-                    print(f"Valore placeholder per '{key}' nella sezione '{section}'")
-                    run_setup()
-                    return False
-
-
 
     return True
 
@@ -134,10 +89,16 @@ if command == "start":
         print("###################")
         if not check_configuration():
             run_setup()
+            if check_configuration():
+                print("Configuration completed, starting OpenHUB...")
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+            else:
+                print("Configuration not completed, exiting.")
+            sys.exit(0)  
 
         processi = []
         
-        # --- AVVIO MPRIS-PROXY PER IL BLUETOOTH ---
+        # start mpros for blueooth
         try:
             p_mpris = subprocess.Popen(["mpris-proxy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             processi.append(p_mpris)
@@ -145,7 +106,7 @@ if command == "start":
         except FileNotFoundError:
             print("Warning: mpris-proxy not found. Bluetooth media info will not work.")
 
-        # --- AVVIO SCRIPT PYTHON ---
+        # start python
         files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", "back_process/music_scrobbling.py"]
 
         for file in files:
