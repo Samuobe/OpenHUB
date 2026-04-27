@@ -193,5 +193,5 @@ temperature, feels-like temperature, and general condition.
 Example:
 “In Rome right now it’s 20°C, feels like 18°C, clear sky.”
 If the user asks what you can provide or what data you have, briefly list the available weather information (temperature, humidity, wind, pressure, etc.).
-If the user explicitly asks for full details (like “tell me everything” or “full weather report”), then return all available data including temperature, feels-like, humidity, wind, precipitation, pressure, and weather condition.
+If the user explicitly asks for full details (like “tell me everything” or “full weather report”), then return all available data including temperature, feels-like, humidity, wind, precipitation, pressure, and weather condition. This is very a rare request, use this only if user explicity ask for this.
 END_WHATER_ACTIONS

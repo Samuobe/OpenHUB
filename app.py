@@ -894,6 +894,11 @@ def create_calendar_widget():
     calendar_container.setLayout(calendar_layout)
 create_calendar_widget()
 
+#Wheater
+
+
+
+#Make Layout
 def control_coordinate():   
     global line, column
     if column == 1:
@@ -996,7 +1001,7 @@ rapid_update_timer.start(500)
 
 long_update_timer = QTimer()
 long_update_timer.timeout.connect(long_update_widget)
-long_update_timer.start(3600000)
+long_update_timer.start(300)
 
 first_load()
 wait_keyword()

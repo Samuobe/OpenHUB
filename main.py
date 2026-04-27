@@ -16,28 +16,91 @@ data_path = ""
 def check_configuration():
     base_file = "credential_base.env"
     user_file = f"{data_path}credential.env"
-
-    if not os.path.exists(user_file):
-        return False
+    CONFIG_FILE = "config.conf"
 
     base_config = configparser.ConfigParser()
-    base_config.optionxform = str 
+    base_config.optionxform = str
     base_config.read(base_file)
 
     user_config = configparser.ConfigParser()
     user_config.optionxform = str
-    user_config.read(user_file)
+
+    if os.path.exists(user_file):
+        user_config.read(user_file)
+    else:
+        open(user_file, "w").close()
+
+    updated_user = False
+
+    for section in base_config.sections():
+        if not user_config.has_section(section):
+            user_config.add_section(section)
+            updated_user = True
+
+        for key in base_config.options(section):
+            if not user_config.has_option(section, key):
+                default_val = base_config.get(section, key, fallback="*")
+                user_config.set(section, key, default_val)
+                updated_user = True
+
+    if updated_user:
+        with open(user_file, "w") as f:
+            user_config.write(f)
+
+    DEFAULT_CONFIG = {
+        "User data": {
+            "Language": "English",
+            "AI_model": "*"
+        },
+        "Widgets": {
+            "Music": "Enable",
+            "Calendar": "Enable",
+            "Weather": "Enable"
+        }
+    }
+
+    config = configparser.ConfigParser()
+    config.optionxform = str
+
+    if os.path.exists(CONFIG_FILE):
+        config.read(CONFIG_FILE)
+
+    updated_main = False
+
+    for section, values in DEFAULT_CONFIG.items():
+        if not config.has_section(section):
+            return False
+
+        for key in values:
+            if not config.has_option(section, key):
+                return False
+
+            val = config.get(section, key).strip()
+
+            if val == "":
+                return False
+
+            if val == "*":
+                return False
+
+    if updated_main:
+        with open(CONFIG_FILE, "w") as f:
+            config.write(f)
 
     for section in base_config.sections():
         if not user_config.has_section(section):
             return False
-            
+
         for key in base_config.options(section):
             if not user_config.has_option(section, key):
                 return False
 
             val = user_config.get(section, key).strip()
+
             if val == "":
+                return False
+
+            if val == "*":
                 return False
 
     return True

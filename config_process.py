@@ -413,15 +413,22 @@ def prepare_config_state(force_all=False):
                         break
                     
                     val = env_config.get(sec_name, key).strip()
-                    if val == "" or val == "-":  
+                    
+                    if val == "-":
+                        continue
+
+                    if val == "*":
+                        needs_config = True
+                        break
+
+                    if val == "":
                         needs_config = True
                         break
                     
         if needs_config:
             app_state["sections_to_configure"].append(section)
             has_missing_sections = True
-            
-    # Attiviamo l'interfaccia se forzato, se mancano le credenziali, OPPURE se manca l'IA
+
     app_state["needs_ui"] = force_all or has_missing_sections or ai_missing
 
 
