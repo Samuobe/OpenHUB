@@ -51,16 +51,14 @@ setup_autostart() {
 
     read -p "Enable OpenHUB at startup? (y/n): " setup_systemd
     if [[ "$setup_systemd" =~ ^[Yy]$ ]]; then
+        systemctl --user unmask openhub.service 2>/dev/null # toglie eventuale mask vecchia
         systemctl --user enable openhub.service
         echo "Autostart ENABLED."
     else
         echo "Autostart NOT enabled."
     fi
-
-    setup_python_env "$INSTALL_DIR"
-    install_user_bin "$INSTALL_DIR"
-    setup_autostart "$INSTALL_DIR"
 }
+
 
 install_dev() {
     echo "Installing OpenHUB DEV version (dev branch)..."
@@ -117,7 +115,10 @@ install_dev() {
         echo "WARNING: $BIN_DIR is not in your PATH. Please add it."
     fi
 
-    common_setup "$LOCAL_BIN"
+
+    setup_python_env "$INSTALL_DIR"
+    install_user_bin "$INSTALL_DIR"
+    setup_autostart "$INSTALL_DIR"
 }
 
 common_setup(){
@@ -229,7 +230,8 @@ EOF
         echo "WARNING: $BIN_DIR is not in your PATH. Please add it to your ~/.bashrc or ~/.zshrc."
     fi
     setup_python_env "$INSTALL_DIR"
-    common_setup "$LOCAL_BIN"
+    install_user_bin "$INSTALL_DIR"
+    setup_autostart "$INSTALL_DIR"
 }
 
 echo "Welcome to the OpenHUB installation program!"
