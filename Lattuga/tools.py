@@ -22,7 +22,6 @@ import openmeteo_requests
 import pandas as pd
 import requests_cache
 from retry_requests import retry
-from datetime import datetime, timedelta
 
 mixer = alsaaudio.Mixer()
     
@@ -487,18 +486,16 @@ def get_weather(city, day_offset, hour):
         "pressure": hourly.Variables(7).ValuesAsNumpy(),
     })
 
-    # 🔥 FIX CRUCIALE: converti nel timezone della città
     df["date"] = df["date"].dt.tz_convert(tz)
 
-    # target time coerente
-    now = datetime.now().astimezone()
+    now = datetime.datetime.now().astimezone()
 
     target_time = now.replace(
         hour=hour,
         minute=0,
         second=0,
         microsecond=0
-    ) + timedelta(days=day_offset)
+    ) + datetime.timedelta(days=day_offset)
 
     closest = df.iloc[(df["date"] - target_time).abs().argsort()[:1]]
     row = closest.iloc[0]

@@ -536,6 +536,7 @@ def load_calendar():
     calendar_thread.start()
 
 def long_update_widget():
+    print("Update lungo")
     if setting_status(calendar_widget_status):
         load_calendar()
 
@@ -1001,7 +1002,7 @@ rapid_update_timer.start(500)
 
 long_update_timer = QTimer()
 long_update_timer.timeout.connect(long_update_widget)
-long_update_timer.start(300)
+long_update_timer.start(300000)
 
 first_load()
 wait_keyword()
