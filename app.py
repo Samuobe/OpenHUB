@@ -82,8 +82,36 @@ splash.showMessage(f"OpenHUB\n{lpak.get("Loading", language)}...",
                    Qt.GlobalColor.white)
 
 app.processEvents()
-#END SPALSH
+#####################
+#####################
+######END#SPASH######
+#####################
+#####################
 
+
+
+
+
+
+#LIBRERIE
+from PyQt6.QtWidgets import QMainWindow, QHBoxLayout, QPushButton, QVBoxLayout, QWidget, QLabel, QDialog, QGridLayout
+import datetime
+from PyQt6.QtCore import QTime, Qt, QTimer
+from PyQt6.QtWidgets import QLabel, QPushButton, QScrollArea, QFrame, QMenu, QSlider
+import re
+import requests
+from Lattuga.lattuga import voice_input, Lattuga, manual_input
+from Lattuga.tools import get_events, get_weather
+from other_windows.app_store import open_store_page
+import subprocess
+from functions.mpv_status import is_mpv_running
+import alsaaudio
+import importlib
+import json
+from other_windows.settings import open_settings_page
+from PyQt6.QtGui import QAction
+from other_windows.bluetooth_manager import open_bluetooth_window
+import Lattuga.tools as my_tools
 
 style_widget = """
     QLabel {
@@ -592,28 +620,6 @@ def load_static_data():
 def first_load():
     load_static_data()
     load_calendar()
-
-
-#LIBRERIE
-from PyQt6.QtWidgets import QMainWindow, QHBoxLayout, QPushButton, QVBoxLayout, QWidget, QLabel, QDialog, QGridLayout
-import datetime
-from PyQt6.QtCore import QTime, Qt, QTimer
-from PyQt6.QtWidgets import QLabel, QPushButton, QScrollArea, QFrame, QMenu, QSlider
-import re
-import requests
-from Lattuga.lattuga import voice_input, Lattuga, manual_input
-from Lattuga.tools import get_events, get_weather
-from other_windows.app_store import open_store_page
-import subprocess
-from functions.mpv_status import is_mpv_running
-import alsaaudio
-import importlib
-import json
-from other_windows.settings import open_settings_page
-from PyQt6.QtGui import QAction
-from other_windows.bluetooth_manager import open_bluetooth_window
-import Lattuga.tools as my_tools
-
 
 
 mixer = alsaaudio.Mixer()
