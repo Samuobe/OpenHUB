@@ -489,7 +489,10 @@ def get_weather(city, day_offset, hour):
     df["date"] = df["date"].dt.tz_convert(tz)
 
     now = datetime.datetime.now().astimezone()
-
+    
+    if hour == 24:
+        hour = 0
+        
     target_time = now.replace(
         hour=hour,
         minute=0,
