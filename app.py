@@ -623,6 +623,9 @@ device_name = config.get("Device info", "device_name")
 
 
 #CONFIG
+def verify_folders():
+    folder.mkdir(parents=True, exist_ok=True)
+
 def config_initial_volume():
     global mixer
     if os.path.isfile("data/audio_volume.data"):
@@ -648,6 +651,8 @@ def config_initial_volume():
                 f"{int(data[0])}%"
             ])
 
+
+verify_folders()
 if not test_mode_enable():
     config_initial_volume()
 
