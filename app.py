@@ -624,7 +624,11 @@ device_name = config.get("Device info", "device_name")
 
 #CONFIG
 def verify_folders():
-    folder.mkdir(parents=True, exist_ok=True)
+    folders = ["data"]
+    for folder in folders:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
 
 def config_initial_volume():
     global mixer
