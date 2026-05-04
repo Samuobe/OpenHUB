@@ -1,6 +1,9 @@
 # OpenHUB
 
 OpenHUB is a Python-based “home hub / station” application with a lot of features powered by "Lattuga Project". It's an opensource alternative to google nest hub or amazon echo show.
+
+https://github.com/user-attachments/assets/98432f7c-97f6-4c82-a0e1-eac1a50140b5
+
 ---
 
 ## Key features
