@@ -30,16 +30,88 @@ config_credential.optionxform = str
 config_credential.read(f"{data_path}credential.env")
 city = config_credential.get("Device info", "city")
 
-
 def setting_status(a):
     if a=="Enable":
         return True
     else:
         return False
 
-
-
 musicbrainzngs.set_useragent("OpenHUB", "0.1", "https://github.com/Samuobe/OpenHUB")
+
+#global gabbage
+
+last_title = ""
+active_threads = []
+
+
+app = QApplication(sys.argv)
+
+# Start loading
+screen = app.primaryScreen()
+rect = screen.geometry()
+pixmap = QPixmap(rect.width(), rect.height())
+pixmap.fill(QColor("#000000")) 
+
+painter = QPainter(pixmap)
+painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+painter.setBrush(QColor("#1a4d2e"))
+painter.drawRect(0, 0, rect.width(), rect.height())
+
+painter.setBrush(QColor("#2e7d32"))
+
+central_rect = QRect(rect.width()//2 - 250, rect.height()//2 - 150, 500, 300)
+painter.drawRoundedRect(central_rect, 30, 30)
+
+painter.end()
+splash = QSplashScreen(pixmap, Qt.WindowType.FramelessWindowHint | 
+                               Qt.WindowType.WindowStaysOnTopHint | 
+                               Qt.WindowType.Tool)
+
+splash.setGeometry(rect)
+if not test_mode_enable():
+    splash.showFullScreen()
+else:
+    splash.show()
+splash.raise_() 
+splash.activateWindow()
+
+splash.setFont(QFont("Ubuntu", 30, QFont.Weight.Bold))
+splash.showMessage(f"OpenHUB\n{lpak.get("Loading", language)}...", 
+                   Qt.AlignmentFlag.AlignCenter, 
+                   Qt.GlobalColor.white)
+
+app.processEvents()
+#####################
+#####################
+######END#SPASH######
+#####################
+#####################
+
+
+
+
+
+
+#LIBRERIE
+from PyQt6.QtWidgets import QMainWindow, QHBoxLayout, QPushButton, QVBoxLayout, QWidget, QLabel, QDialog, QGridLayout
+import datetime
+from PyQt6.QtCore import QTime, Qt, QTimer
+from PyQt6.QtWidgets import QLabel, QPushButton, QScrollArea, QFrame, QMenu, QSlider
+import re
+import requests
+from Lattuga.lattuga import voice_input, Lattuga, manual_input
+from Lattuga.tools import get_events, get_weather
+from other_windows.app_store import open_store_page
+import subprocess
+from functions.mpv_status import is_mpv_running
+import alsaaudio
+import importlib
+import json
+from other_windows.settings import open_settings_page
+from PyQt6.QtGui import QAction
+from other_windows.bluetooth_manager import open_bluetooth_window
+import Lattuga.tools as my_tools
 
 style_widget = """
     QLabel {
@@ -51,12 +123,6 @@ style_widget = """
         font-size: 30;
     }
 """
-
-#global gabbage
-
-last_title = ""
-active_threads = []
-
 
 if os.path.isfile(f"{data_path}conversation.json"):
     os.remove(f"{data_path}conversation.json")
@@ -556,77 +622,52 @@ def first_load():
     load_calendar()
 
 
-app = QApplication(sys.argv)
-
-# Start loading
-screen = app.primaryScreen()
-rect = screen.geometry()
-pixmap = QPixmap(rect.width(), rect.height())
-pixmap.fill(QColor("#000000")) 
-
-painter = QPainter(pixmap)
-painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-painter.setBrush(QColor("#1a4d2e"))
-painter.drawRect(0, 0, rect.width(), rect.height())
-
-painter.setBrush(QColor("#2e7d32"))
-
-central_rect = QRect(rect.width()//2 - 250, rect.height()//2 - 150, 500, 300)
-painter.drawRoundedRect(central_rect, 30, 30)
-
-painter.end()
-splash = QSplashScreen(pixmap, Qt.WindowType.FramelessWindowHint | 
-                               Qt.WindowType.WindowStaysOnTopHint | 
-                               Qt.WindowType.Tool)
-
-splash.setGeometry(rect)
-if not test_mode_enable():
-    splash.showFullScreen()
-else:
-    splash.show()
-splash.raise_() 
-splash.activateWindow()
-
-splash.setFont(QFont("Ubuntu", 30, QFont.Weight.Bold))
-splash.showMessage(f"OpenHUB\n{lpak.get("Loading", language)}...", 
-                   Qt.AlignmentFlag.AlignCenter, 
-                   Qt.GlobalColor.white)
-
-app.processEvents()
-#END SPALSH
-
-
-#LIBRERIE
-from PyQt6.QtWidgets import QMainWindow, QHBoxLayout, QPushButton, QVBoxLayout, QWidget, QLabel, QDialog, QGridLayout
-import datetime
-from PyQt6.QtCore import QTime, Qt, QTimer
-from PyQt6.QtWidgets import QLabel, QPushButton, QScrollArea, QFrame, QMenu
-import re
-import requests
-from Lattuga.lattuga import voice_input, Lattuga, manual_input
-from Lattuga.tools import get_events, get_weather
-from other_windows.app_store import open_store_page
-import subprocess
-from functions.mpv_status import is_mpv_running
-import alsaaudio
-import importlib
-import json
-from other_windows.settings import open_settings_page
-from PyQt6.QtGui import QAction
-from other_windows.bluetooth_manager import open_bluetooth_window
-import Lattuga.tools as my_tools
-
-
-
 mixer = alsaaudio.Mixer()
 
 config.read("credential.env")
 device_name = config.get("Device info", "device_name")
 
 
+#CONFIG
+def verify_folders():
+    folders = ["data"]
+    for folder in folders:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
 
 
+def config_initial_volume():
+    global mixer
+    if os.path.isfile("data/audio_volume.data"):
+        with open("data/audio_volume.data", "r") as f:
+            data = f.readlines()
+            mixer.setvolume(int(data[0]))
+
+    if os.path.isfile("data/mic_volume.data"):
+        with open("data/mic_volume.data", "r") as f:
+            data = f.readlines()
+
+            result = subprocess.run(
+                ["pactl", "get-default-source"],
+                capture_output=True,
+                text=True
+            )
+            source = result.stdout.strip()
+
+            subprocess.run([
+                "pactl",
+                "set-source-volume",
+                source,
+                f"{int(data[0])}%"
+            ])
+
+
+verify_folders()
+if not test_mode_enable():
+    config_initial_volume()
+
+
+#Prepare interface
 root = QMainWindow()
 root.setWindowTitle("OpenHUB")
 
@@ -676,9 +717,9 @@ def show_energy_popup():
 
 
     btn_shutdown = QPushButton(lpak.get("System power off", language))
-    btn_shutdown.setObjectName("shutdown")
+    btn_shutdown.setObjectName("system")
     btn_restart = QPushButton(lpak.get("System reboot", language))
-    btn_restart.setObjectName("shutdown")
+    btn_restart.setObjectName("system")
     btn_close = QPushButton(lpak.get("Close", language))
     btn_restart_openhub = QPushButton(lpak.get("Restart OpenHUB", language))
     btn_close_openhub = QPushButton(lpak.get("Close OpenHUB", language))
@@ -702,6 +743,185 @@ def show_energy_popup():
     layout.addWidget(btn_restart)
     layout.addWidget(btn_close)
 
+    dialog.exec()
+
+def show_volume_popup():
+    #get mic data
+    def get_default_source():
+        result = subprocess.run(
+            ["pactl", "get-default-source"],
+            capture_output=True,
+            text=True
+        )
+        return result.stdout.strip()
+
+    def get_source_volume(source):
+        result = subprocess.run(
+            ["pactl", "get-source-volume", source],
+            capture_output=True,
+            text=True
+        )
+
+        match = re.search(r"(\d+)%", result.stdout)
+        return int(match.group(1)) if match else 0
+
+    def set_mic_volume(source, volume):
+        subprocess.run([
+            "pactl",
+            "set-source-volume",
+            source,
+            f"{volume}%"
+        ])
+        with open("data/mic_volume.data", "w") as f:
+            f.write(str(volume))
+
+    #get stereo data
+    def set_stereo_volume(volume):
+        mixer.setvolume(volume)
+        with open("data/audio_volume.data", "w") as f:
+            f.write(str(volume))
+
+
+    #get data
+    mic = get_default_source()
+    mic_volume = get_source_volume(mic)
+
+    stereo_volume= mixer.getvolume()[0]
+
+    #interface
+    dialog = QDialog(root)
+    dialog.setWindowFlags(
+        Qt.WindowType.FramelessWindowHint |
+        Qt.WindowType.WindowStaysOnTopHint
+    )
+    dialog.setModal(True)
+    dialog.setFixedSize(350, 180)
+
+    dialog.setStyleSheet("""
+        QDialog {
+            background-color: #ffffff;
+            border-radius: 10px;
+            border: 2px solid #0078D7;
+        }
+
+        QLabel {
+            color: black;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        QPushButton {
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 6px;
+            font-size: 16px;
+        }
+
+        QPushButton:hover {
+            background-color: #e0e0e0;
+        }
+
+        QSlider::groove:horizontal {
+            height: 6px;
+            background: #ddd;
+            border-radius: 3px;
+        }
+
+        QSlider::sub-page:horizontal {
+            background: #0078D7;
+            border-radius: 3px;
+        }
+
+        QSlider::handle:horizontal {
+            width: 14px;
+            background: #0078D7;
+            border-radius: 7px;
+            margin: -5px 0;
+        }
+    """)
+
+    layout = QVBoxLayout(dialog)
+
+    #labels
+    label_mic_volume = QLabel(f"{lpak.get("Microphone sensitivity", language)}: {mic_volume}%")
+    label_mic_volume.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    label_stereo_volume = QLabel(f"{lpak.get("Audio volume", language)}: {stereo_volume}%")
+    label_stereo_volume.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    #mic slider
+    mic_slider = QSlider(Qt.Orientation.Horizontal)
+    mic_slider.setMinimum(0)
+    mic_slider.setMaximum(100)
+    mic_slider.setValue(mic_volume)
+
+    #stereo slider
+    stereo_slider = QSlider(Qt.Orientation.Horizontal)
+    stereo_slider.setMinimum(0)
+    stereo_slider.setMaximum(100)
+    stereo_slider.setValue(stereo_volume)
+
+
+    #Update funtions
+    def update_mic_volume(value):
+        label_mic_volume.setText(f"{lpak.get("Microphone sensitivity", language)}: {value}%")
+        set_mic_volume(mic, value)
+
+    def update_stereo_volume(value):
+        label_stereo_volume.setText(f"{lpak.get("Audio volume", language)}: {value}%")
+        set_stereo_volume(value)
+
+    mic_slider.valueChanged.connect(update_mic_volume)
+    stereo_slider.valueChanged.connect(update_stereo_volume)
+
+    #Mic things
+    btn_minus_mic = QPushButton("➖")
+    btn_plus_mic = QPushButton("➕")
+
+    def change_mic(delta):
+        new_value = mic_slider.value() + delta
+        new_value = max(0, min(100, new_value))
+        mic_slider.setValue(new_value)
+
+    btn_minus_mic.clicked.connect(lambda: change_mic(-1))
+    btn_plus_mic.clicked.connect(lambda: change_mic(1))
+
+    #Stereo things
+    btn_minus_stereo = QPushButton("➖")
+    btn_plus_stereo = QPushButton("➕")
+
+    def change_stereo(delta):
+        new_value = stereo_slider.value() + delta
+        new_value = max(0, min(100, new_value))
+        stereo_slider.setValue(new_value)
+
+    btn_minus_stereo.clicked.connect(lambda: change_stereo(-5))
+    btn_plus_stereo.clicked.connect(lambda: change_stereo(5))
+
+    #mic control
+    hbox_mic = QHBoxLayout()
+    hbox_mic.addWidget(btn_minus_mic)
+    hbox_mic.addWidget(mic_slider)
+    hbox_mic.addWidget(btn_plus_mic)
+
+    #volume control
+    hbox_stereo = QHBoxLayout()
+    hbox_stereo.addWidget(btn_minus_stereo)
+    hbox_stereo.addWidget(stereo_slider)
+    hbox_stereo.addWidget(btn_plus_stereo)
+
+    #close button
+    close_button = QPushButton(text=lpak.get("Close", language))
+    close_button.clicked.connect(dialog.close)
+
+    #build all
+    layout.addWidget(label_stereo_volume)
+    layout.addLayout(hbox_stereo)
+    layout.addWidget(label_mic_volume)
+    layout.addLayout(hbox_mic)
+    layout.addWidget(close_button)
+
+    dialog.setLayout(layout)
     dialog.exec()
 
 up_bar_layout = QHBoxLayout()
@@ -755,16 +975,19 @@ dropdown_menu.setStyleSheet("""
     }
 """)
 
+action_audio = QAction(f"🔊 {lpak.get("Volume", language)}")
 action_bluetooth_settings = QAction(f">ᛒ {lpak.get("Bluetooth settings", language)}")
 action_settings = QAction(f"⚙️ {lpak.get("Settings", language)}", menu_button) 
 action_store = QAction("🏪 Store", menu_button)
 action_energy_options = QAction(f"🔋 {lpak.get("Energy options", language)}", menu_button)
 
+action_audio.triggered.connect(show_volume_popup)
 action_settings.triggered.connect(open_settings_page)
 #action_store.triggered.connect(open_store_page)
 action_energy_options.triggered.connect(show_energy_popup)
 action_bluetooth_settings.triggered.connect(lambda: open_bluetooth_window())
 
+dropdown_menu.addAction(action_audio)
 dropdown_menu.addAction(action_bluetooth_settings)
 dropdown_menu.addAction(action_settings)
 #dropdown_menu.addAction(action_store)
@@ -816,13 +1039,19 @@ def play_song_command(action):
 def turn_up_volume():
     try:
         original_volume = mixer.getvolume()[0]
-        mixer.setvolume(original_volume+ 5)
+        volume = original_volume + 5
+        mixer.setvolume(volume)
+        with open("data/audio_volume.data", "w") as f:
+            f.write(str(volume).strip())
     except:
         pass
 def turn_down_volume():
     try:
         original_volume = mixer.getvolume()[0]
-        mixer.setvolume(original_volume- 5)
+        volume = original_volume - 5
+        mixer.setvolume(volume)
+        with open("data/audio_volume.data", "w") as f:
+            f.write(str(volume))
     except:
         pass
 
