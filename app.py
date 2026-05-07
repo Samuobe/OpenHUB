@@ -40,7 +40,7 @@ def setting_status(a):
 musicbrainzngs.set_useragent("OpenHUB", "0.1", "https://github.com/Samuobe/OpenHUB")
 
 #global gabbage
-
+active_player_name = None
 last_title = ""
 active_threads = []
 
@@ -532,7 +532,6 @@ def manage_keyword_result(trovata):
         QTimer.singleShot(1000, wait_keyword)
         return
 
-    # forza lo spegnimento screensaver e reset idle quando la keyword è trovata
     idle.reset()
     if screensaver.isVisible():
         screensaver.hide()
@@ -566,8 +565,9 @@ def update_time():
 def update_music():
     global last_title, current_cover_thread
     global music_container, music_artist, music_title, music_title_label, music_album, music_play_button, music_cover_label
-    global music_next_song_button, music_previus_song_button, music_volume_up_button, music_volume_down_button, music_layout
-    
+    global music_next_song_button, music_previus_song_button, music_volume_up_button, music_volume_down_button, music_layout    
+    global active_player_name
+
     def set_cover_or_emoji(result):
         if result:
             pixmap = QPixmap()
@@ -601,7 +601,8 @@ def update_music():
                 stderr=subprocess.DEVNULL
             )
         music_data = music_data_raw.strip().split("|||")
-        
+        if len(music_data) >= 8:
+            active_player_name = music_data[7].strip()
         if len(music_data) >= 5:
             artist = music_data[0]
             title = music_data[1]
@@ -638,12 +639,10 @@ def update_music():
                 new_cover_thread.finished.connect(cleanup_and_set)
                 new_cover_thread.start()
                 
-            if music_status == "Playing":
+            if music_status.strip().lower() == "playing":
                 music_play_button.setText("⏸️")
-                music_play_button.clicked.connect(lambda: play_song_command(2))
             else:
                 music_play_button.setText("▶️")
-                music_play_button.clicked.connect(lambda: play_song_command(1))
                 
     except subprocess.TimeoutExpired:
         pass
@@ -1142,27 +1141,47 @@ label_time.setAlignment(Qt.AlignmentFlag.AlignCenter)
 #music
 music_container, music_artist, music_title, music_title_label, music_album, music_play_button = None, None, None, None, None, None
 music_next_song_button, music_previus_song_button, music_volume_up_button, music_volume_down_button, music_layout, music_cover_label = None, None, None, None, None, None
-def next_song_command():
-    if is_mpv_running():
-        os.system('playerctl -p "mpv" next')
-    else: 
-        os.system("playerctl next")
-def previous_song_command():
-    if is_mpv_running():
-        os.system('playerctl -p "mpv" previous')
-    else: 
-        os.system("playerctl previous")
-def play_song_command(action):
-    if action==1:
-        if is_mpv_running():
-            os.system('playerctl -p "mpv" play')
-        else: 
-            os.system("playerctl play")
+def next_song_command(_checked=False):
+    base = ["playerctl"]
+    if active_player_name:
+        base += ["-p", active_player_name]
+    elif is_mpv_running():
+        base += ["-p", "mpv"]
+    subprocess.Popen(base + ["next"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def previous_song_command(_checked=False):
+    base = ["playerctl"]
+    if active_player_name:
+        base += ["-p", active_player_name]
+    elif is_mpv_running():
+        base += ["-p", "mpv"]
+    subprocess.Popen(base + ["previous"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def play_song_command(_checked=False):    
+    global active_player_name
+
+   
+    base = ["playerctl"]
+    if active_player_name:
+        base += ["-p", active_player_name]
     else:
+        # fallback: comportamento vecchio
         if is_mpv_running():
-            os.system('playerctl -p "mpv" pause')
-        else: 
-            os.system("playerctl pause")
+            base += ["-p", "mpv"]
+
+    try:
+        status = subprocess.check_output(
+            base + ["status"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=0.3
+        ).strip().lower()
+    except:
+        status = ""
+
+    if "playing" in status:
+        subprocess.Popen(base + ["pause"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        subprocess.Popen(base + ["play"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 def turn_up_volume():
     try:
         original_volume = mixer.getvolume()[0]
@@ -1202,6 +1221,7 @@ def create_music_widget():
     music_cover_label.setScaledContents(True)
 
     music_play_button = QPushButton(text="▶️")
+    music_play_button.clicked.connect(play_song_command)
     music_next_song_button = QPushButton(text="⏭️")
     music_next_song_button.clicked.connect(next_song_command)
     music_previus_song_button = QPushButton(text="⏮️")
