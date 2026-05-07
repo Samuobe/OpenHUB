@@ -113,6 +113,7 @@ from other_windows.settings import open_settings_page
 from PyQt6.QtGui import QAction
 from other_windows.bluetooth_manager import open_bluetooth_window
 import Lattuga.tools as my_tools
+import glob
 
 style_widget = """
     QLabel {
@@ -289,8 +290,19 @@ class ActivityFilter(QObject):
 
         return False
 
+
+import os, glob, subprocess
+from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QStackedLayout, QGraphicsOpacityEffect
+from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
+from PyQt6.QtGui import QPixmap
+
 class ScreenSaver(QWidget):
-    def __init__(self):
+    IMAGE_HEIGHT_RATIO = 0.78 #% space image in monitor
+    SLIDE_MS = 5000 #photo timer
+    FADE_MS = 800 #fade time
+    MUSIC_POLL_MS = 2000 #update music timer
+
+    def __init__(self, images_dir="custom/images/screensaver"):
         super().__init__()
 
         self.setWindowFlags(
@@ -298,30 +310,163 @@ class ScreenSaver(QWidget):
             Qt.WindowType.WindowStaysOnTopHint |
             Qt.WindowType.Tool
         )
-
         self.setStyleSheet("background-color: black;")
 
-        self.label = QLabel("🌌", self)
-        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label.setStyleSheet("color: white; font-size: 80px;")
+        self.image_container = QWidget(self)
+        self.stack = QStackedLayout(self.image_container)
+        self.stack.setContentsMargins(0, 0, 0, 0)
+
+        self.img_a = QLabel()
+        self.img_b = QLabel()
+        for lab in (self.img_a, self.img_b):
+            lab.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lab.setStyleSheet("background: transparent; color: white; font-size: 80px;")
+            lab.setText("🌌")
+
+        self.fx_a = QGraphicsOpacityEffect(self.img_a)
+        self.fx_b = QGraphicsOpacityEffect(self.img_b)
+        self.img_a.setGraphicsEffect(self.fx_a)
+        self.img_b.setGraphicsEffect(self.fx_b)
+        self.fx_a.setOpacity(1.0)
+        self.fx_b.setOpacity(0.0)
+
+        self.stack.addWidget(self.img_a)
+        self.stack.addWidget(self.img_b)
+
+        self.music_label = QLabel(self)
+        self.music_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.music_label.setStyleSheet("""
+            QLabel {
+                background-color: rgba(0, 0, 0, 160);
+                color: white;
+                padding: 10px 20px;
+                font-size: 18px;
+                border-top: 1px solid rgba(255,255,255,40);
+            }
+        """)
+        self.music_label.setText("")
 
         layout = QVBoxLayout(self)
-        layout.addWidget(self.label)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.image_container, stretch=1)
+        layout.addWidget(self.music_label, stretch=0)
 
-        self.images = []  # opzionale
+        exts = ("*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp")
+        self.images = []
+        for ext in exts:
+            self.images += glob.glob(os.path.join(images_dir, ext))
+        self.images.sort()
         self.index = 0
 
-        self.timer = QTimer()
+        self.front_label = self.img_a
+        self.back_label = self.img_b
+        self.front_fx = self.fx_a
+        self.back_fx = self.fx_b
+
+        self.anim_in = QPropertyAnimation(self.back_fx, b"opacity", self)
+        self.anim_out = QPropertyAnimation(self.front_fx, b"opacity", self)
+        for a in (self.anim_in, self.anim_out):
+            a.setDuration(self.FADE_MS)
+            a.setEasingCurve(QEasingCurve.Type.InOutQuad)
+
+        self.timer = QTimer(self)
         self.timer.timeout.connect(self.next_frame)
-        self.timer.start(3000)
+        self.timer.start(self.SLIDE_MS)
+
+        self.music_timer = QTimer(self)
+        self.music_timer.timeout.connect(self.update_now_playing)
+        self.music_timer.start(self.MUSIC_POLL_MS)
+
+        self._set_label_pix(self.front_label, self._get_current_pixmap_or_none())
+        self.front_fx.setOpacity(1.0)
+        self.back_fx.setOpacity(0.0)
+        self.update_now_playing()
+
+    def _scaled(self, pix: QPixmap) -> QPixmap:
+        target_h = int(self.height() * self.IMAGE_HEIGHT_RATIO)
+        return pix.scaledToHeight(target_h, Qt.TransformationMode.SmoothTransformation)
+
+    def _get_current_pixmap_or_none(self):
+        if not self.images:
+            return None
+        path = self.images[self.index]
+        self.index = (self.index + 1) % len(self.images)
+        pix = QPixmap(path)
+        return None if pix.isNull() else pix
+
+    def _set_label_pix(self, label: QLabel, pix: QPixmap | None):
+        if pix is None:
+            label.setPixmap(QPixmap())
+            label.setText("🌌")
+            return
+        label.setText("")
+        label.setPixmap(self._scaled(pix))
 
     def next_frame(self):
-        if self.images:
-            pix = QPixmap(self.images[self.index])
-            self.label.setPixmap(pix)
-            self.index = (self.index + 1) % len(self.images)
-        else:
-            self.label.setText("🌌")
+        pix = self._get_current_pixmap_or_none()
+        self._set_label_pix(self.back_label, pix)
+
+        self.back_fx.setOpacity(0.0)
+        self.front_fx.setOpacity(1.0)
+
+        self.anim_in.stop()
+        self.anim_out.stop()
+
+        self.anim_in = QPropertyAnimation(self.back_fx, b"opacity", self)
+        self.anim_out = QPropertyAnimation(self.front_fx, b"opacity", self)
+        for a in (self.anim_in, self.anim_out):
+            a.setDuration(self.FADE_MS)
+            a.setEasingCurve(QEasingCurve.Type.InOutQuad)
+
+        self.anim_in.setStartValue(0.0)
+        self.anim_in.setEndValue(1.0)
+        self.anim_out.setStartValue(1.0)
+        self.anim_out.setEndValue(0.0)
+
+        self.anim_in.start()
+        self.anim_out.start()
+
+        self.front_label, self.back_label = self.back_label, self.front_label
+        self.front_fx, self.back_fx = self.back_fx, self.front_fx
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        pix = self.front_label.pixmap()
+        if pix and not pix.isNull():
+            self.front_label.setPixmap(pix.scaledToHeight(
+                int(self.height() * self.IMAGE_HEIGHT_RATIO),
+                Qt.TransformationMode.SmoothTransformation
+            ))
+
+    def update_now_playing(self):
+        try:
+            raw = subprocess.check_output(
+                ["playerctl", "metadata", "--format",
+                 "{{status}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}"],
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=0.3
+            ).strip()
+        except Exception:
+            self.music_label.setText("Nothing playing")
+            return
+
+        parts = raw.split("|||")
+        if len(parts) < 5:
+            self.music_label.setText("Nothing playing")
+            return
+
+        status, artist, title, album, player = [p.strip() for p in parts]
+        if not title:
+            self.music_label.setText("Nothing playing")
+            return
+
+        artist = artist or "Unknown artist"
+        album_part = f" ({album})" if album else ""
+        #self.music_label.setText(f"{status} • {artist} - {title}{album_part}  [{player}]")
+        self.music_label.setText(f"{status} • {artist} - {title}{album_part}")
+
 
 #End screen saver
 
