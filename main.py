@@ -13,11 +13,49 @@ def test_mode_enable():
 
 data_path = ""
 
+def ensure_config_defaults(CONFIG_FILE, DEFAULT_CONFIG):
+    config = configparser.ConfigParser()
+    config.optionxform = str
+
+    # Leggi se esiste, altrimenti partirà vuoto e verrà creato
+    if os.path.isfile(CONFIG_FILE):
+        config.read(CONFIG_FILE)
+
+    changed = False
+
+    for section, values in DEFAULT_CONFIG.items():
+        if not config.has_section(section):
+            config.add_section(section)
+            changed = True
+
+        for key, default_val in values.items():
+            if not config.has_option(section, key):
+                config.set(section, key, str(default_val))
+                changed = True
+
+    # Se il file non esisteva, qui changed sarà True -> lo crea
+    if changed:
+        with open(CONFIG_FILE, "w") as f:
+            config.write(f)
+
+    return config, changed
+
+def config_has_asterisk(config, DEFAULT_CONFIG):
+    for section, values in DEFAULT_CONFIG.items():
+        if not config.has_section(section):
+            continue
+        for key in values:
+            if config.has_option(section, key):
+                if config.get(section, key).strip() == "*":
+                    return True
+    return False
+
 def check_configuration():
     base_file = "credential_base.env"
     user_file = f"{data_path}credential.env"
     CONFIG_FILE = "config.conf"
 
+    # --- controllo credential.env (come hai già) ---
     if not os.path.exists(user_file):
         return False
 
@@ -39,14 +77,12 @@ def check_configuration():
             if val == "" or val == "*":
                 return False
 
-    # config control
-    if not os.path.exists(CONFIG_FILE):
-        return False 
-
+    # --- config control (config.conf) ---
     DEFAULT_CONFIG = {
         "User data": {
             "Language": "English",
-            "AI_model": "*"
+            "AI_model": "ministral-3:14b-cloud",
+            "Screensaver_timeout": "50000"
         },
         "Widgets": {
             "Music": "Enable",
@@ -54,19 +90,18 @@ def check_configuration():
             "Weather": "Enable"
         }
     }
-    
-    config = configparser.ConfigParser()
-    config.optionxform = str
-    config.read(CONFIG_FILE)
-    
+
+    # se non esiste, lo crea con i default; se esiste, aggiunge solo le chiavi mancanti
+    config, _ = ensure_config_defaults(CONFIG_FILE, DEFAULT_CONFIG)
+
+    # setup SOLO se c'è "*"
+    if config_has_asterisk(config, DEFAULT_CONFIG):
+        return False
+
+    # invalido se vuoto
     for section, values in DEFAULT_CONFIG.items():
-        if not config.has_section(section):
-            return False
         for key in values:
-            if not config.has_option(section, key):
-                return False
-            val = config.get(section, key).strip()
-            if val == "" or val == "*":
+            if config.get(section, key, fallback="").strip() == "":
                 return False
 
     return True

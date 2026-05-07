@@ -124,7 +124,6 @@ install_openhub() {
 
     local INFO_DIR="$INSTALL_DIR/info"
 
-    # Permessi
     if [ ! -d "$INSTALL_DIR" ]; then
         mkdir -p "$INSTALL_DIR" 2>/dev/null || sudo mkdir -p "$INSTALL_DIR" && sudo chown -R "$USER:$USER" "$INSTALL_DIR"
     fi
@@ -144,7 +143,6 @@ install_openhub() {
             exit 1
         fi
 
-        # Pulisci completamente la directory per fare spazio al nuovo ZIP
         find "$INSTALL_DIR" -mindepth 1 -not -path "$INFO_DIR" -not -path "$INSTALL_DIR/venv*" -exec rm -rf {} + 2>/dev/null
         
         TMP_DIR=$(mktemp -d)
@@ -159,8 +157,6 @@ install_openhub() {
         echo "OpenHUB installed: $REL_VER"
 
     else
-        # INSTALLAZIONE DA GIT (MAIN / DEV)
-        # Se la directory contiene roba ma NON è un repo git (es. provieni da ZIP Stable), dobbiamo svuotare
         if [ -d "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR/.git" ]; then
             find "$INSTALL_DIR" -mindepth 1 -not -path "$INFO_DIR" -not -path "$INSTALL_DIR/venv*" -exec rm -rf {} + 2>/dev/null
         fi
@@ -169,7 +165,7 @@ install_openhub() {
             echo "Updating existing OpenHUB repository to $TARGET_TYPE branch..."
             cd "$INSTALL_DIR" || exit
             git fetch --all
-            # Rimuove le modifiche locali e forza l'allineamento con il branch remoto richiesto
+            
             git reset --hard HEAD
             git clean -fd
             git checkout "$TARGET_TYPE"

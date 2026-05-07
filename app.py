@@ -19,6 +19,7 @@ config.optionxform = str
 config.read(f"{data_path}config.conf")
 language = config.get("User data", "Language")
 language_code = get_language_code.get(language)
+screensaver_timeout = config.get("User data","Screensaver_timeout")
 
 music_widget_status = config.get("Widgets", "Music")
 calendar_widget_status = config.get("Widgets", "Calendar")
@@ -96,7 +97,7 @@ app.processEvents()
 #LIBRERIE
 from PyQt6.QtWidgets import QMainWindow, QHBoxLayout, QPushButton, QVBoxLayout, QWidget, QLabel, QDialog, QGridLayout
 import datetime
-from PyQt6.QtCore import QTime, Qt, QTimer
+from PyQt6.QtCore import QTime, Qt, QTimer, QObject, QEvent
 from PyQt6.QtWidgets import QLabel, QPushButton, QScrollArea, QFrame, QMenu, QSlider
 import re
 import requests
@@ -130,7 +131,9 @@ if os.path.isfile(f"{data_path}conversation.json"):
 
 
 def show_big_advice(testo):
-    global current_popup
+    global current_popup, idle
+    idle.reset()
+    screensaver.hide()
     if current_popup:
         current_popup.close()
 
@@ -231,7 +234,7 @@ def show_big_advice(testo):
     popup.show()
         
     tts.say(testo_pulito)
-    wait_keyword()
+    QTimer.singleShot(0, wait_keyword)
 
 def clear_layout(layout, keep=1):
     while layout.count() > keep:
@@ -239,6 +242,88 @@ def clear_layout(layout, keep=1):
         widget = item.widget()
         if widget is not None:
             widget.deleteLater()
+
+##Screen saver
+class IdleDetector(QObject):
+    def __init__(self, timeout_ms, on_idle, on_resume):
+        super().__init__()
+        self.timeout_ms = timeout_ms
+        self.on_idle = on_idle
+        self.on_resume = on_resume
+
+        self.timer = QTimer()
+        self.timer.setInterval(timeout_ms)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.trigger_idle)
+
+        self.active = True
+        self.timer.start()
+
+    def reset(self):
+        if not self.active:
+            self.on_resume()
+            self.active = True
+        self.timer.start()
+
+    def trigger_idle(self):
+        self.active = False
+        self.on_idle()
+
+class ActivityFilter(QObject):
+    def __init__(self, idle_detector):
+        super().__init__()
+        self.idle_detector = idle_detector
+
+    def eventFilter(self, obj, event):
+        if event.type() in [
+            QEvent.Type.MouseMove,
+            QEvent.Type.MouseButtonPress,
+            QEvent.Type.KeyPress,
+            QEvent.Type.Wheel
+        ]:
+            self.idle_detector.reset()
+
+            # se screensaver attivo → chiudi
+            if screensaver.isVisible():
+                screensaver.hide()
+
+        return False
+
+class ScreenSaver(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.Tool
+        )
+
+        self.setStyleSheet("background-color: black;")
+
+        self.label = QLabel("🌌", self)
+        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label.setStyleSheet("color: white; font-size: 80px;")
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.label)
+
+        self.images = []  # opzionale
+        self.index = 0
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.next_frame)
+        self.timer.start(3000)
+
+    def next_frame(self):
+        if self.images:
+            pix = QPixmap(self.images[self.index])
+            self.label.setPixmap(pix)
+            self.index = (self.index + 1) % len(self.images)
+        else:
+            self.label.setText("🌌")
+
+#End screen saver
 
 class CalendarWorker(QThread):
     finished = pyqtSignal(object) 
@@ -291,12 +376,16 @@ class CoverWorker(QThread):
             self.finished.emit(None)
 
 class VoiceWorker(QThread):
+    global idle
     finished = pyqtSignal(str)
+    wake = pyqtSignal()
     def run(self):
-        try:
+        self.wake.emit()
+        try:            
             prompt = voice_input(turn_down_volume=True)
-            self.finished.emit(prompt if prompt else "")
+            self.finished.emit(prompt if prompt else "")            
         except:
+            screensaver.hide()
             status_label.setText("Error, microphone not found!!")
 
 
@@ -377,10 +466,14 @@ def verify_actions(response):
 
 def ask_ai():
     global voice_worker
+
+    idle.reset()
+    if screensaver.isVisible():
+        screensaver.hide()
+
     if 'voice_worker' in globals() and voice_worker is not None and voice_worker.isRunning():
         print("DEBUG: voice_worker is already running!")
         return
-
 
     tts.stop()
     if current_popup:
@@ -417,6 +510,11 @@ def ask_ai():
             def restart():
                 QTimer.singleShot(1000, wait_keyword)
             
+            try:
+                tts.finished.disconnect()
+            except:
+                pass
+
             tts.finished.connect(restart)
 
         ai_worker.finished.connect(handle_ai_result)
@@ -433,9 +531,15 @@ def manage_keyword_result(trovata):
     if not trovata:
         QTimer.singleShot(1000, wait_keyword)
         return
+
+    # forza lo spegnimento screensaver e reset idle quando la keyword è trovata
+    idle.reset()
+    if screensaver.isVisible():
+        screensaver.hide()
+
     if keyword_thread:
         keyword_thread.finished.disconnect()
-    
+
     status_label.setStyleSheet("color: green; font-weight: bold;")
     ask_ai()
 
@@ -670,12 +774,35 @@ if not test_mode_enable():
 #Prepare interface
 root = QMainWindow()
 root.setWindowTitle("OpenHUB")
+screensaver = ScreenSaver()
 
 
 central_widget = QWidget()
 root.setCentralWidget(central_widget)
 main_layout = QVBoxLayout(central_widget)
 
+#Screem saver
+def show_screensaver():
+    if test_mode_enable():
+        screensaver.showMaximized()
+    else:
+        screensaver.showFullScreen()
+    screensaver.raise_()
+    screensaver.activateWindow()
+
+def hide_screensaver():
+    screensaver.hide()
+idle = IdleDetector(
+    timeout_ms=int(screensaver_timeout), 
+    on_idle=show_screensaver,
+    on_resume=hide_screensaver
+)
+def wake_up():
+    idle.reset()
+    if screensaver.isVisible():
+        screensaver.hide()
+activity_filter = ActivityFilter(idle)
+app.installEventFilter(activity_filter)
 
 # up bar
 def show_energy_popup():
