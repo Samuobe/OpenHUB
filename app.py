@@ -785,8 +785,10 @@ def update_music():
             if music_status == "Playing":
                 music_play_button.setText("⏸️")
                 music_play_button.clicked.connect(lambda: play_song_command(2))
-                if music_title.text().replace("...", "") == lpak.get("Initialization", language):
-                    music_title.setText("Unknown CD")
+                if last_title != "unknow_title_1":
+                    if music_title.text().replace("...", "") == lpak.get("Initialization", language):
+                        music_title.setText("Unknown CD")
+                        last_title == "unknow_title_1"
             else:
                 music_play_button.setText("▶️")
                 music_play_button.clicked.connect(lambda: play_song_command(1))
