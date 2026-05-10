@@ -17,7 +17,6 @@ def ensure_config_defaults(CONFIG_FILE, DEFAULT_CONFIG):
     config = configparser.ConfigParser()
     config.optionxform = str
 
-    # Leggi se esiste, altrimenti partirà vuoto e verrà creato
     if os.path.isfile(CONFIG_FILE):
         config.read(CONFIG_FILE)
 
@@ -33,7 +32,6 @@ def ensure_config_defaults(CONFIG_FILE, DEFAULT_CONFIG):
                 config.set(section, key, str(default_val))
                 changed = True
 
-    # Se il file non esisteva, qui changed sarà True -> lo crea
     if changed:
         with open(CONFIG_FILE, "w") as f:
             config.write(f)
@@ -55,7 +53,6 @@ def check_configuration():
     user_file = f"{data_path}credential.env"
     CONFIG_FILE = "config.conf"
 
-    # --- controllo credential.env (come hai già) ---
     if not os.path.exists(user_file):
         return False
 
@@ -77,7 +74,6 @@ def check_configuration():
             if val == "" or val == "*":
                 return False
 
-    # --- config control (config.conf) ---
     DEFAULT_CONFIG = {
         "User data": {
             "Language": "English",
@@ -91,14 +87,11 @@ def check_configuration():
         }
     }
 
-    # se non esiste, lo crea con i default; se esiste, aggiunge solo le chiavi mancanti
     config, _ = ensure_config_defaults(CONFIG_FILE, DEFAULT_CONFIG)
 
-    # setup SOLO se c'è "*"
     if config_has_asterisk(config, DEFAULT_CONFIG):
         return False
 
-    # invalido se vuoto
     for section, values in DEFAULT_CONFIG.items():
         for key in values:
             if config.get(section, key, fallback="").strip() == "":
@@ -134,8 +127,7 @@ if command == "start":
                 sys.exit(0)
 
         processi = []
-        
-        # start mpros for blueooth
+
         try:
             p_mpris = subprocess.Popen(["mpris-proxy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             processi.append(p_mpris)
@@ -143,8 +135,7 @@ if command == "start":
         except FileNotFoundError:
             print("Warning: mpris-proxy not found. Bluetooth media info will not work.")
 
-        # start python
-        files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", "back_process/music_scrobbling.py"]
+        files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", "back_process/music_scrobbling.py" "back_process/search_cd_data_daemon.py"]
 
         for file in files:
             file_path = os.path.join(script_dir, file)
