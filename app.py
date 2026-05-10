@@ -701,29 +701,38 @@ def wait_keyword():
     keyword_thread.start()
 
 #UPDATE GUI
-
-def lookup_cd_metadata():
-    try:
-        disc = discid.read('/dev/cdrom')  # o /dev/sr0 secondo il tuo device
-        disc_id = disc.id
-        result = musicbrainzngs.get_releases_by_discid(disc_id, includes=["recordings", "artists"])
-        # Prendi il primo release trovato
-        for release in result.get('disc', {}).get('release-list', []):
-            album = release.get('title', 'CD Audio')
-            artist = release['artist-credit'][0]['artist']['name'] if 'artist-credit' in release else 'Sconosciuto'
-            track_titles = []
-            for med in release.get('medium-list', []):
-                for track in med.get('track-list', []):
-                    track_titles.append(track['recording']['title'])
-            return album, artist, track_titles
-    except Exception as e:
-        print(f"MusicBrainz lookup failed: {e}")
-    return None, None, None
-
 def update_time():
     time_now = datetime.datetime.now().strftime("%H:%M \n %d/%m/%Y")
     label_time.setText(time_now)
-    
+
+
+def lookup_cd_metadata(dev="/dev/sr0"):
+    try:
+        disc = discid.read(dev)
+        disc_id = disc.id
+        res = musicbrainzngs.get_releases_by_discid(disc_id, includes=["recordings", "artists"])
+        releases = res.get('disc', {}).get('release-list', [])
+        if not releases:
+            return None, None, []
+        release = releases[0]
+        album = release.get('title', 'Audio CD')
+        artist = release['artist-credit'][0]['artist']['name'] if 'artist-credit' in release else 'Sconosciuto'
+        track_titles = []
+        for medium in release.get('medium-list', []):
+            for track in medium.get('track-list', []):
+                track_titles.append(track['recording']['title'])
+        return album, artist, track_titles
+    except Exception as e:
+        print(f"MusicBrainz lookup failed: {e}")
+    return None, None, []
+
+def is_placeholder(text):
+    if not text or text.strip().lower() in ("unknown", "audio cd", "cd audio"):
+        return True
+    if text.strip().lower().startswith("track") or text.strip().lower().startswith("traccia"):
+        return True
+    return False
+
 def update_music():
     global last_title, current_cover_thread
     global music_container, music_artist, music_title, music_title_label, music_album, music_play_button, music_cover_label
@@ -777,25 +786,31 @@ def update_music():
             url = artist = title = album = music_status = player = tracknum = ""
             active_player_name = None
 
-        if url.startswith("cdda://") or (player and "vlc" in player.lower()):
+        is_cd = url.startswith("cdda://") or (player and "vlc" in player.lower())
+        if is_cd:
+            curr_artist = artist or "CD Audio"
+            curr_album = album or "Audio CD"
+            curr_title = title
             try:
-                track_n = int(tracknum) if tracknum.strip().isdigit() else 1
-            except: track_n = 1
+                curr_track_n = int(tracknum) if tracknum.strip().isdigit() else 1
+            except:
+                curr_track_n = 1
 
-            cd_album, cd_artist, cd_tracks = lookup_cd_metadata("/dev/sr0")
-            show_artist = cd_artist or "CD Audio"
-            show_album  = cd_album  or "Audio CD"
-            if cd_tracks and 0 < track_n <= len(cd_tracks):
-                show_title = cd_tracks[track_n - 1]
-            else:
-                show_title = f"Traccia {track_n}"
+            if is_placeholder(curr_title) or is_placeholder(curr_artist):
+                cd_album, cd_artist, cd_tracks = lookup_cd_metadata("/dev/sr0")
+                if cd_artist: curr_artist = cd_artist
+                if cd_album: curr_album = cd_album
+                if cd_tracks and 0 < curr_track_n <= len(cd_tracks):
+                    curr_title = cd_tracks[curr_track_n - 1]
+                else:
+                    curr_title = f"Traccia {curr_track_n}"
 
-            if show_title != last_title:
-                last_title = show_title
-                music_artist.setText(f"{lpak.get('Artist', language)}: {show_artist}")
-                music_title.setText(f"{lpak.get('Title', language)}: {show_title}")
-                music_album.setText(f"{lpak.get('Album', language)}: {show_album}")
-                set_cover_or_emoji(None)  # Fallback emoji oppure puoi cercare la cover su MusicBrainz
+            if curr_title != last_title:
+                last_title = curr_title
+                music_artist.setText(f"{lpak.get('Artist', language)}: {curr_artist}")
+                music_title.setText(f"{lpak.get('Title', language)}: {curr_title}")
+                music_album.setText(f"{lpak.get('Album', language)}: {curr_album}")
+                set_cover_or_emoji(None)
 
             if music_status.strip().lower() == "playing":
                 music_play_button.setText("⏸️")
