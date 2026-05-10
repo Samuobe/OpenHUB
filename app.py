@@ -785,12 +785,13 @@ def update_music():
             if music_status == "Playing":
                 music_play_button.setText("⏸️")
                 music_play_button.clicked.connect(lambda: play_song_command(2))
+                if music_title.text().replace("...", "") == lpak.get("Initialization", language):
+                    music_title.setText("Unknown CD")
             else:
                 music_play_button.setText("▶️")
                 music_play_button.clicked.connect(lambda: play_song_command(1))
                 
     except subprocess.TimeoutExpired:
-        print("time endeed")
         pass
 
     except subprocess.CalledProcessError:
@@ -801,8 +802,6 @@ def update_music():
         music_cover_label.setPixmap(QPixmap())
         music_cover_label.setText("🎵")
         last_title = ""
-    except:
-        print("Problem during retring song data")
 
 
 def update_gui():
