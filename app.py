@@ -711,89 +711,84 @@ def update_music():
     global last_title, current_cover_thread
     global music_container, music_artist, music_title, music_title_label, music_album, music_play_button, music_cover_label
     global music_next_song_button, music_previus_song_button, music_volume_up_button, music_volume_down_button, music_layout
-
+    
     def set_cover_or_emoji(result):
         if result:
             pixmap = QPixmap()
             pixmap.loadFromData(result)
             music_cover_label.setPixmap(pixmap)
-            music_cover_label.setText("")
+            music_cover_label.setText("") 
         else:
-            music_cover_label.setPixmap(QPixmap())
+            music_cover_label.setPixmap(QPixmap()) 
             music_cover_label.setText("🎵")
             music_cover_label.setStyleSheet("""
-                background-color: #ddd;
-                border-radius: 10px;
-                font-size: 70px;
+                background-color: #ddd; 
+                border-radius: 10px; 
+                font-size: 70px; 
                 text-align: center;
             """)
             music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     try:
-        # MODIFICA CRUCIALE: Proviamo prima il comando generico
-        try:
+        if is_mpv_running():
+            music_data_raw = subprocess.check_output(
+                ["playerctl", "-p", "mpv","metadata", "--format", "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}"],
+                timeout=0.2,
+                text=True,
+                stderr=subprocess.DEVNULL
+            )
+        else:
             music_data_raw = subprocess.check_output(
                 ["playerctl", "metadata", "--format", "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}"],
                 timeout=0.2,
                 text=True,
                 stderr=subprocess.DEVNULL
             )
-        except subprocess.CalledProcessError:
-            # Se fallisce, proviamo specificamente mpv
-            music_data_raw = subprocess.check_output(
-                ["playerctl", "-p", "mpv", "metadata", "--format", "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}"],
-                timeout=0.2,
-                text=True,
-                stderr=subprocess.DEVNULL
-            )
-
         music_data = music_data_raw.strip().split("|||")
-
+        
         if len(music_data) >= 5:
             artist = music_data[0]
             title = music_data[1]
             album = music_data[2]
             music_status = music_data[4]
-
+        
             if title != last_title:
                 last_title = title
-                music_artist.setText(f"{lpak.get('Artist', language)}: {artist}")
+                music_artist.setText(f"{lpak.get("Artist", language)}: {artist}")
                 if "stream.view?" in title:
-                    music_title.setText(f"{lpak.get('Loading', language)}...")
+                    music_title.setText(f"{lpak.get("Loading", language)}...")
                 else:
-                    music_title.setText(f"{lpak.get('Title', language)}: {title}")
-                music_album.setText(f"{lpak.get('Album', language)}: {album}")
+                    music_title.setText(f"{lpak.get("Title", language)}: {title}")
+                music_album.setText(f"{lpak.get("Album", language)}: {album}")
 
                 music_cover_label.setPixmap(QPixmap())
                 music_cover_label.setText("⏳")
                 music_cover_label.setStyleSheet("""
-                        background-color: #ddd;
-                        border-radius: 10px;
-                        font-size: 70px;
+                        background-color: #ddd; 
+                        border-radius: 10px; 
+                        font-size: 70px; 
                         text-align: center;
-                    """)
+                    """) 
 
+         
                 new_cover_thread = CoverWorker(artist, album, title)
                 active_threads.append(new_cover_thread)
 
-                # FIX: Usiamo una lambda per passare il riferimento corretto
-                def make_cleanup_and_set(thread_ref):
-                    def cleanup_and_set(result):
-                        set_cover_or_emoji(result)
-                        if thread_ref in active_threads:
-                            active_threads.remove(thread_ref)
-                    return cleanup_and_set
-
-                new_cover_thread.finished.connect(make_cleanup_and_set(new_cover_thread))
+                def cleanup_and_set(result, thread_ref=new_cover_thread):
+                    set_cover_or_emoji(result)
+                    if thread_ref in active_threads:
+                        active_threads.remove(thread_ref)
+                        
+                new_cover_thread.finished.connect(cleanup_and_set)
                 new_cover_thread.start()
-
+                
             if music_status == "Playing":
                 music_play_button.setText("⏸️")
                 music_play_button.clicked.connect(lambda: play_song_command(2))
             else:
                 music_play_button.setText("▶️")
                 music_play_button.clicked.connect(lambda: play_song_command(1))
-
+                
     except subprocess.TimeoutExpired:
         pass
 
@@ -805,6 +800,10 @@ def update_music():
         music_cover_label.setPixmap(QPixmap())
         music_cover_label.setText("🎵")
         last_title = ""
+    except:
+        print("Problem during retring song data")
+
+
 def update_gui():
     update_time()
     if setting_status(music_widget_status):
