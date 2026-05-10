@@ -42,11 +42,7 @@ musicbrainzngs.set_useragent("OpenHUB", "0.1", "https://github.com/Samuobe/OpenH
 #global gabbage
 active_player_name = None
 last_title = ""
-
-#Threads manage
 active_threads = []
-music_active_cover_thread = None
-music_active_cover_thread_request = None  
 
 
 app = QApplication(sys.argv)
@@ -252,123 +248,6 @@ def clear_layout(layout, keep=1):
         if widget is not None:
             widget.deleteLater()
 
-def get_current_playing_info():
-    """
-    Recupera stato attuale, artista, titolo, album, player con la stessa logica robusta di update_music.
-    Restituisce un dict:
-      status: "playing"/"paused"/"stopped"
-      artist, title, album, tracknumber, player, release_id
-    """
-    try:
-        if is_mpv_running():
-            music_data_raw = subprocess.check_output(
-                ["playerctl", "-p", "mpv", "metadata", "--format", "{{xesam:url}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}|||{{xesam:tracknumber}}"],
-                timeout=0.2, text=True, stderr=subprocess.DEVNULL
-            )
-        else:
-            music_data_raw = subprocess.check_output(
-                ["playerctl", "metadata", "--format", "{{xesam:url}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}|||{{xesam:tracknumber}}"],
-                timeout=0.2, text=True, stderr=subprocess.DEVNULL
-            )
-        music_data = music_data_raw.strip().split("|||")
-        if len(music_data) >= 10:
-            url, artist, title, album = music_data[0], music_data[1], music_data[2], music_data[3]
-            status = music_data[5]
-            player = music_data[8]
-            tracknum = music_data[9]
-        else:
-            url = artist = title = album = status = player = tracknum = ""
-        is_cd = url.startswith("cdda://") or (player and "vlc" in player.lower())
-        release_id = None
-        if is_cd:
-            curr_artist = artist or "CD Audio"
-            curr_album = album or "Audio CD"
-            curr_title = title
-            try:
-                curr_track_n = int(tracknum) if tracknum.strip().isdigit() else 1
-            except:
-                curr_track_n = 1
-            if is_placeholder(curr_title) or is_placeholder(curr_artist):
-                cd_album, cd_artist, cd_tracks, release_id = lookup_cd_metadata("/dev/sr0")
-                if cd_artist: curr_artist = cd_artist
-                if cd_album: curr_album = cd_album
-                if cd_tracks and 0 < curr_track_n <= len(cd_tracks):
-                    curr_title = cd_tracks[curr_track_n - 1]
-                elif not curr_title:
-                    curr_title = f"Traccia {curr_track_n}"
-            else:
-                release_id = None
-            return dict(
-                status=status,
-                artist=curr_artist,
-                album=curr_album,
-                title=curr_title,
-                player=player,
-                tracknumber=tracknum,
-                release_id=release_id
-            )
-        return dict(
-            status=status,
-            artist=artist,
-            album=album,
-            title=title,
-            player=player,
-            tracknumber=tracknum,
-            release_id=None
-        )
-    except Exception as e:
-        return dict(status="stopped", artist="", album="", title="", player="", tracknumber="", release_id=None)
-
-# Puoi metterla a livello globale
-_cover_cache = {}
-
-def set_cover_art(label, artist, album, title, release_id=None):
-    """
-    Aggiorna la copertina della QLabel 'label'.
-    Usa cache per release_id. Chiama solo quando cambia traccia/album.
-    """
-    import requests
-    from PyQt6.QtGui import QPixmap
-
-    # Prima: cerca in cache
-    key = release_id or f"{artist}-{album}-{title}"
-    if release_id and key in _cover_cache:
-        data = _cover_cache[key]
-        pixmap = QPixmap()
-        pixmap.loadFromData(data)
-        label.setPixmap(pixmap)
-        label.setText("")
-        return
-
-    # Copertina CD via MusicBrainz (release_id), oppure fallback normale
-    try:
-        if release_id:
-            url = f"https://coverartarchive.org/release/{release_id}/front-250"
-            resp = requests.get(url, timeout=5)
-            if resp.status_code == 200:
-                data = resp.content
-                _cover_cache[key] = data
-                pixmap = QPixmap()
-                pixmap.loadFromData(data)
-                label.setPixmap(pixmap)
-                label.setText("")
-                return
-        # Per altre tracce normali, usa CoverWorker/thread come facevi prima,
-        # oppure qui puoi mettere un fetch simile (o meglio ancora, usare il thread CoverWorker).
-    except Exception as e:
-        print("Errore cover art:", e)
-
-    # Fallback emoji musicale
-    label.setPixmap(QPixmap())
-    label.setText("🎵")
-    label.setStyleSheet("""
-        background-color: #ddd; 
-        border-radius: 10px; 
-        font-size: 70px; 
-        text-align: center;
-    """)
-    label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
 ##Screen saver
 class IdleDetector(QObject):
     def __init__(self, timeout_ms, on_idle, on_resume):
@@ -409,33 +288,18 @@ class ActivityFilter(QObject):
         ]:
             self.idle_detector.reset()
 
+            # se screensaver attivo → chiudi
             if screensaver.isVisible():
                 screensaver.hide()
 
         return False
 
 
-class ReleaseCoverWorker(QThread):
-    finished = pyqtSignal(object)
-    def __init__(self, release_id):
-        super().__init__()
-        self.release_id = release_id
-    def run(self):
-        try:
-            url = f"https://coverartarchive.org/release/{self.release_id}/front-250"
-            resp = requests.get(url, timeout=6)
-            if resp.status_code == 200:
-                self.finished.emit(resp.content)
-                return
-        except Exception as e:
-            print(f"CD Cover fetch failed (screensaver): {e}")
-        self.finished.emit(None)
-
 class ScreenSaver(QWidget):
-    IMAGE_HEIGHT_RATIO = 0.78 # % spazio immagine in monitor
-    SLIDE_MS = 5000 # photo timer
-    FADE_MS = 800 # fade time
-    MUSIC_POLL_MS = 3500 # update music timer
+    IMAGE_HEIGHT_RATIO = 0.78 #% space image in monitor
+    SLIDE_MS = 5000 #photo timer
+    FADE_MS = 800 #fade time
+    MUSIC_POLL_MS = 2000 #update music timer
 
     def __init__(self, images_dir="custom/images/screensaver"):
         super().__init__()
@@ -449,36 +313,34 @@ class ScreenSaver(QWidget):
 
         self.image_container = QWidget(self)
         self.stack = QStackedLayout(self.image_container)
+        self.stack.setContentsMargins(0, 0, 0, 0)
+
         self.img_a = QLabel()
         self.img_b = QLabel()
         for lab in (self.img_a, self.img_b):
             lab.setAlignment(Qt.AlignmentFlag.AlignCenter)
             lab.setStyleSheet("background: transparent; color: white; font-size: 80px;")
             lab.setText("🌌")
+
         self.fx_a = QGraphicsOpacityEffect(self.img_a)
         self.fx_b = QGraphicsOpacityEffect(self.img_b)
         self.img_a.setGraphicsEffect(self.fx_a)
         self.img_b.setGraphicsEffect(self.fx_b)
         self.fx_a.setOpacity(1.0)
         self.fx_b.setOpacity(0.0)
+
         self.stack.addWidget(self.img_a)
         self.stack.addWidget(self.img_b)
 
-        self.music_cover_label = QLabel(self)
-        self.music_cover_label.setStyleSheet("background-color: #222; border-radius: 16px; margin: 0;")
-        self.music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
-        self.music_cover_label.setScaledContents(True)
         self.music_label = QLabel(self)
-        self.music_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        self.music_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.music_label.setStyleSheet("""
             QLabel {
                 background-color: rgba(0, 0, 0, 160);
                 color: white;
-                padding: 16px 24px;
-                font-size: 23px;
-                min-height: 70px;
-                border-top-left-radius: 16px;
-                border-bottom-left-radius: 16px;
+                padding: 10px 20px;
+                font-size: 18px;
+                border-top: 1px solid rgba(255,255,255,40);
             }
         """)
         self.music_label.setText("")
@@ -486,13 +348,8 @@ class ScreenSaver(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        music_info_layout = QHBoxLayout()
-        music_info_layout.setContentsMargins(36, 36, 36, 0)
-        music_info_layout.setSpacing(20)
-        music_info_layout.addWidget(self.music_cover_label, 0, Qt.AlignmentFlag.AlignVCenter)
-        music_info_layout.addWidget(self.music_label, 1, Qt.AlignmentFlag.AlignVCenter)
-        layout.addLayout(music_info_layout, stretch=0)
         layout.addWidget(self.image_container, stretch=1)
+        layout.addWidget(self.music_label, stretch=0)
 
         exts = ("*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp")
         self.images = []
@@ -515,19 +372,14 @@ class ScreenSaver(QWidget):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.next_frame)
         self.timer.start(self.SLIDE_MS)
+
         self.music_timer = QTimer(self)
         self.music_timer.timeout.connect(self.update_now_playing)
         self.music_timer.start(self.MUSIC_POLL_MS)
+
         self._set_label_pix(self.front_label, self._get_current_pixmap_or_none())
         self.front_fx.setOpacity(1.0)
         self.back_fx.setOpacity(0.0)
-
-        self._ss_last_title = ""
-        self._ss_last_album = ""
-        self._ss_last_release_id = ""
-        self._ss_active_cover_thread = None
-        self._ss_cover_request_key = None
-
         self.update_now_playing()
 
     def _scaled(self, pix: QPixmap) -> QPixmap:
@@ -579,70 +431,41 @@ class ScreenSaver(QWidget):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        h = self.music_label.height()
-        if h < 50: h = 50
-        self.music_cover_label.setFixedHeight(h)
-        self.music_cover_label.setFixedWidth(h)
-
         pix = self.front_label.pixmap()
         if pix and not pix.isNull():
-            self.front_label.setPixmap(self._scaled(pix))
+            self.front_label.setPixmap(pix.scaledToHeight(
+                int(self.height() * self.IMAGE_HEIGHT_RATIO),
+                Qt.TransformationMode.SmoothTransformation
+            ))
 
     def update_now_playing(self):
-        info = get_current_playing_info()
-        status = info['status']
-        artist = info['artist'] or "Unknown artist"
-        title = info['title'] or ""
-        album = info['album'] or ""
-        release_id = info.get("release_id")
-
-        if status.lower() not in ("playing", "paused") or not title:
+        try:
+            raw = subprocess.check_output(
+                ["playerctl", "metadata", "--format",
+                 "{{status}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}"],
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=0.3
+            ).strip()
+        except Exception:
             self.music_label.setText("Nothing playing")
-            self.music_cover_label.setPixmap(QPixmap())
-            self.music_cover_label.setText("🎵")
-            self._ss_last_title = ""
-            self._ss_last_album = ""
-            self._ss_last_release_id = ""
-            self._ss_cover_request_key = None
             return
 
+        parts = raw.split("|||")
+        if len(parts) < 5:
+            self.music_label.setText("Nothing playing")
+            return
+
+        status, artist, title, album, player = [p.strip() for p in parts]
+        if not title:
+            self.music_label.setText("Nothing playing")
+            return
+
+        artist = artist or "Unknown artist"
         album_part = f" ({album})" if album else ""
-        info_txt = f"{status} • {artist} - {title}{album_part}"
-        self.music_label.setText(info_txt)
+        #self.music_label.setText(f"{status} • {artist} - {title}{album_part}  [{player}]")
+        self.music_label.setText(f"{status} • {artist} - {title}{album_part}")
 
-        if (title != self._ss_last_title) or (album != self._ss_last_album) or (release_id != self._ss_last_release_id):
-            self._ss_last_title = title
-            self._ss_last_album = album
-            self._ss_last_release_id = release_id
-
-            self._ss_cover_request_key = (release_id or "", title, album)
-            
-            def set_cover_pix(data, req=self._ss_cover_request_key):
-                if self._ss_cover_request_key != req:
-                    return
-                if data:
-                    pixmap = QPixmap()
-                    pixmap.loadFromData(data)
-                    self.music_cover_label.setPixmap(pixmap)
-                    self.music_cover_label.setText("")
-                else:
-                    self.music_cover_label.setPixmap(QPixmap())
-                    self.music_cover_label.setText("🎵")
-                    self.music_cover_label.setStyleSheet("""
-                        background-color: #222; border-radius: 14px; font-size: 50px; color: #efe;
-                    """)
-
-            if release_id:
-                cover_thread = ReleaseCoverWorker(release_id)
-                self._ss_active_cover_thread = cover_thread
-                cover_thread.finished.connect(lambda data, req=self._ss_cover_request_key: set_cover_pix(data, req))
-                cover_thread.start()
-            else:
-                self.music_cover_label.setPixmap(QPixmap())
-                self.music_cover_label.setText("🎵")
-                self.music_cover_label.setStyleSheet("""
-                    background-color: #222; border-radius: 14px; font-size: 50px; color: #efe;
-                """)
 
 #End screen saver
 
@@ -882,6 +705,7 @@ def update_time():
     time_now = datetime.datetime.now().strftime("%H:%M \n %d/%m/%Y")
     label_time.setText(time_now)
 
+
 def lookup_cd_metadata(dev="/dev/sr0"):
     try:
         disc = discid.read(dev)
@@ -889,19 +713,18 @@ def lookup_cd_metadata(dev="/dev/sr0"):
         res = musicbrainzngs.get_releases_by_discid(disc_id, includes=["recordings", "artists"])
         releases = res.get('disc', {}).get('release-list', [])
         if not releases:
-            return None, None, [], None
+            return None, None, []
         release = releases[0]
         album = release.get('title', 'Audio CD')
         artist = release['artist-credit'][0]['artist']['name'] if 'artist-credit' in release else 'Sconosciuto'
-        release_id = release.get('id')
         track_titles = []
         for medium in release.get('medium-list', []):
             for track in medium.get('track-list', []):
                 track_titles.append(track['recording']['title'])
-        return album, artist, track_titles, release_id
+        return album, artist, track_titles
     except Exception as e:
         print(f"MusicBrainz lookup failed: {e}")
-    return None, None, [], None
+    return None, None, []
 
 def is_placeholder(text):
     if not text or text.strip().lower() in ("unknown", "audio cd", "cd audio"):
@@ -910,69 +733,60 @@ def is_placeholder(text):
         return True
     return False
 
-from PyQt6.QtCore import QThread, pyqtSignal
-
-class ReleaseCoverWorker(QThread):
-    finished = pyqtSignal(object)
-    def __init__(self, release_id):
-        super().__init__()
-        self.release_id = release_id
-
-    def run(self):
-        try:
-            import requests
-            url = f"https://coverartarchive.org/release/{self.release_id}/front-250"
-            resp = requests.get(url, timeout=6)
-            if resp.status_code == 200:
-                self.finished.emit(resp.content)
-                return
-        except Exception as e:
-            print(f"CD Cover fetch failed: {e}")
-        self.finished.emit(None)
-
-last_release_id = None  
-last_album = None      
-
 def update_music():
-    global last_title, last_album, last_release_id, active_player_name
-    global music_active_cover_thread, music_active_cover_thread_request
+    global last_title, current_cover_thread
+    global music_container, music_artist, music_title, music_title_label, music_album, music_play_button, music_cover_label
+    global music_next_song_button, music_previus_song_button, music_volume_up_button, music_volume_down_button, music_layout    
+    global active_player_name
 
-    def set_cover_or_emoji(result, request_key):
-        if music_active_cover_thread_request != request_key:
-            return
+    def set_cover_or_emoji(result):
         if result:
             pixmap = QPixmap()
             pixmap.loadFromData(result)
             music_cover_label.setPixmap(pixmap)
-            music_cover_label.setText("")
+            music_cover_label.setText("") 
         else:
-            music_cover_label.setPixmap(QPixmap())
+            music_cover_label.setPixmap(QPixmap()) 
             music_cover_label.setText("🎵")
             music_cover_label.setStyleSheet("""
-                background-color: #ddd; border-radius: 10px; font-size: 70px; text-align: center;
+                background-color: #ddd; 
+                border-radius: 10px; 
+                font-size: 70px; 
+                text-align: center;
             """)
             music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     try:
-        args = ["playerctl", "metadata", "--format", 
-                "{{xesam:url}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}|||{{xesam:tracknumber}}"
-               ]
         if is_mpv_running():
-            args.insert(1, "-p")
-            args.insert(2, "mpv")
-        music_data_raw = subprocess.check_output(
-            args, timeout=0.2, text=True, stderr=subprocess.DEVNULL
-        )
+            music_data_raw = subprocess.check_output(
+                ["playerctl", "-p", "mpv","metadata", "--format", "{{xesam:url}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}|||{{xesam:tracknumber}}"],
+                timeout=0.2,
+                text=True,
+                stderr=subprocess.DEVNULL
+            )
+        else:
+            music_data_raw = subprocess.check_output(
+                ["playerctl", "metadata", "--format", "{{xesam:url}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}|||{{xesam:tracknumber}}"],
+                timeout=0.2,
+                text=True,
+                stderr=subprocess.DEVNULL
+            )
         music_data = music_data_raw.strip().split("|||")
-        if len(music_data) < 10:
-            return
-        url, artist, title, album = music_data[0], music_data[1], music_data[2], music_data[3]
-        music_status = music_data[5]
-        player = music_data[8]
-        tracknum = music_data[9]
-        active_player_name = player.strip()
-        is_cd = url.startswith("cdda://") or (player and "vlc" in player.lower())
 
+        if len(music_data) >= 10:
+            url        = music_data[0]
+            artist     = music_data[1]
+            title      = music_data[2]
+            album      = music_data[3]
+            music_status = music_data[5]
+            player     = music_data[8]
+            tracknum   = music_data[9]
+            active_player_name = player.strip()
+        else:
+            url = artist = title = album = music_status = player = tracknum = ""
+            active_player_name = None
+
+        is_cd = url.startswith("cdda://") or (player and "vlc" in player.lower())
         if is_cd:
             curr_artist = artist or "CD Audio"
             curr_album = album or "Audio CD"
@@ -982,67 +796,68 @@ def update_music():
             except:
                 curr_track_n = 1
 
-            cd_album, cd_artist, cd_tracks, release_id = lookup_cd_metadata("/dev/sr0") \
-                if is_placeholder(curr_title) or is_placeholder(curr_artist) \
-                else (None, None, None, None)
-            if cd_artist: curr_artist = cd_artist
-            if cd_album: curr_album = cd_album
-            if cd_tracks and 0 < curr_track_n <= len(cd_tracks):
-                curr_title = cd_tracks[curr_track_n - 1]
-            elif not curr_title:
-                curr_title = f"Traccia {curr_track_n}"
+            if is_placeholder(curr_title) or is_placeholder(curr_artist):
+                cd_album, cd_artist, cd_tracks = lookup_cd_metadata("/dev/sr0")
+                if cd_artist: curr_artist = cd_artist
+                if cd_album: curr_album = cd_album
+                if cd_tracks and 0 < curr_track_n <= len(cd_tracks):
+                    curr_title = cd_tracks[curr_track_n - 1]
+                else:
+                    curr_title = f"Traccia {curr_track_n}"
 
-            if curr_title != last_title or release_id != last_release_id:
+            if curr_title != last_title:
                 last_title = curr_title
-                last_release_id = release_id
                 music_artist.setText(f"{lpak.get('Artist', language)}: {curr_artist}")
                 music_title.setText(f"{lpak.get('Title', language)}: {curr_title}")
                 music_album.setText(f"{lpak.get('Album', language)}: {curr_album}")
+                set_cover_or_emoji(None)
 
-                if release_id:
-                    if music_active_cover_thread and music_active_cover_thread.isRunning():
-                        music_active_cover_thread.requestInterruption()
-                    music_active_cover_thread_request = ("CD", release_id)
-                    cover_thread = ReleaseCoverWorker(release_id)
-                    music_active_cover_thread = cover_thread
-                    def cleanup_cover_art(result, req=music_active_cover_thread_request):
-                        set_cover_or_emoji(result, req)
-                    cover_thread.finished.connect(cleanup_cover_art)
-                    cover_thread.start()
-                else:
-                    set_cover_or_emoji(None, None)
-
-            music_play_button.setText("⏸️" if music_status.strip().lower() == "playing" else "▶️")
-            return
-
-        if title != last_title or album != last_album:
-            last_title = title
-            last_album = album
-            music_artist.setText(f"{lpak.get('Artist', language)}: {artist}")
-            music_album.setText(f"{lpak.get('Album', language)}: {album}")
-            if "stream.view?" in title:
-                music_title.setText(f"{lpak.get('Loading', language)}...")
+            if music_status.strip().lower() == "playing":
+                music_play_button.setText("⏸️")
             else:
-                music_title.setText(f"{lpak.get('Title', language)}: {title}")
+                music_play_button.setText("▶️")
+            return 
 
-            if music_active_cover_thread and music_active_cover_thread.isRunning():
-                music_active_cover_thread.requestInterruption()
-            req_key = (artist, album, title)
-            music_active_cover_thread_request = req_key
-            music_cover_label.setPixmap(QPixmap())
-            music_cover_label.setText("⏳")
-            music_cover_label.setStyleSheet("""
-                    background-color: #ddd; border-radius: 10px; font-size: 70px; text-align: center;
-                """)
-            cover_thread = CoverWorker(artist, album, title)
-            music_active_cover_thread = cover_thread
-            def cleanup_and_set(result, req=req_key):
-                set_cover_or_emoji(result, req)
-            cover_thread.finished.connect(cleanup_and_set)
-            cover_thread.start()
+        if len(music_data) >= 5:
+            artist = music_data[1]
+            title = music_data[2]
+            album = music_data[3]
+            music_status = music_data[5]
+        
+            if title != last_title:
+                last_title = title
+                music_artist.setText(f"{lpak.get('Artist', language)}: {artist}")
+                if "stream.view?" in title:
+                    music_title.setText(f"{lpak.get('Loading', language)}...")
+                else:
+                    music_title.setText(f"{lpak.get('Title', language)}: {title}")
+                music_album.setText(f"{lpak.get('Album', language)}: {album}")
 
-        music_play_button.setText("⏸️" if music_status.strip().lower() == "playing" else "▶️")
+                music_cover_label.setPixmap(QPixmap())
+                music_cover_label.setText("⏳")
+                music_cover_label.setStyleSheet("""
+                        background-color: #ddd; 
+                        border-radius: 10px; 
+                        font-size: 70px; 
+                        text-align: center;
+                    """) 
 
+                new_cover_thread = CoverWorker(artist, album, title)
+                active_threads.append(new_cover_thread)
+
+                def cleanup_and_set(result, thread_ref=new_cover_thread):
+                    set_cover_or_emoji(result)
+                    if thread_ref in active_threads:
+                        active_threads.remove(thread_ref)
+                        
+                new_cover_thread.finished.connect(cleanup_and_set)
+                new_cover_thread.start()
+                
+            if music_status.strip().lower() == "playing":
+                music_play_button.setText("⏸️")
+            else:
+                music_play_button.setText("▶️")
+                
     except subprocess.TimeoutExpired:
         pass
 
@@ -1054,17 +869,12 @@ def update_music():
         music_cover_label.setPixmap(QPixmap())
         music_cover_label.setText("🎵")
         last_title = ""
-        last_release_id = None
-        last_album = None
-        music_active_cover_thread = None
-        music_active_cover_thread_request = None
-
 
 def update_gui():
     update_time()
     if setting_status(music_widget_status):
         update_music()
-    #root.repaint()
+    root.repaint()
 
 
 #LONG
@@ -1868,7 +1678,7 @@ main_layout.addLayout(data_widget)
 # TIMER update
 rapid_update_timer = QTimer()
 rapid_update_timer.timeout.connect(update_gui)
-rapid_update_timer.start(1500)
+rapid_update_timer.start(500)
 
 long_update_timer = QTimer()
 long_update_timer.timeout.connect(long_update_widget)
