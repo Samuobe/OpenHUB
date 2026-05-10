@@ -1,20 +1,22 @@
+#!/usr/bin/env python3
+
 import time
 import threading
 import discid
 import musicbrainzngs
-from pydbus import SessionBus
+
 from gi.repository import GLib
+from pydbus import SessionBus
 from mpris_server.server import Server
 from mpris_server.adapters import MprisAdapter
 from mpris_server.base import URI
 
-
 CD_DEVICE = "/dev/sr0"
 
 musicbrainzngs.set_useragent(
-    "OpenHUB",
+    "CDMetadataBridge",
     "1.0",
-    "https://github.com/samuobe/OpenHUB"
+    "you@example.com"
 )
 
 
@@ -34,44 +36,23 @@ class VLCReader:
             self.player = None
             return False
 
-    def get_metadata(self):
+    def metadata(self):
+        if not self.player:
+            return {}
         try:
             return self.player.Player.Metadata
         except Exception:
             return {}
 
-    def get_playback_status(self):
+    def playback_status(self):
+        if not self.player:
+            return "Stopped"
         try:
             return self.player.Player.PlaybackStatus
         except Exception:
             return "Stopped"
 
-    def get_position(self):
-        try:
-            return self.player.Player.Position
-        except Exception:
-            return 0
-
-    def next(self):
-        try:
-            self.player.Player.Next()
-        except Exception:
-            pass
-
-    def previous(self):
-        try:
-            self.player.Player.Previous()
-        except Exception:
-            pass
-
-    def play_pause(self):
-        try:
-            self.player.Player.PlayPause()
-        except Exception:
-            pass
-
-
-class CDMetadata:
+class CDDatabase:
     def __init__(self):
         self.album = "Unknown Album"
         self.artist = "Unknown Artist"
@@ -86,15 +67,16 @@ class CDMetadata:
                 includes=["artists", "recordings"]
             )
 
-            disc_data = result["disc"]
+            disc_data = result.get("disc", {})
+            releases = disc_data.get("release-list", [])
 
-            if "release-list" not in disc_data:
-                print("No MusicBrainz data found")
+            if not releases:
+                print("No MusicBrainz match")
                 return False
 
-            release = disc_data["release-list"][0]
+            release = releases[0]
 
-            self.album = release["title"]
+            self.album = release.get("title", "Unknown Album")
 
             if "artist-credit-phrase" in release:
                 self.artist = release["artist-credit-phrase"]
@@ -103,14 +85,12 @@ class CDMetadata:
 
             for track in medium["track-list"]:
                 num = int(track["position"])
-
                 title = track["recording"]["title"]
-
                 length = int(track.get("length", 0))
 
                 self.tracks[num] = {
                     "title": title,
-                    "length": length,
+                    "length": length
                 }
 
             print(f"Loaded album: {self.album}")
@@ -122,47 +102,39 @@ class CDMetadata:
 
 
 class CDAdapter(MprisAdapter):
-    def __init__(self, vlc_reader, cdmeta):
+    def __init__(self):
         super().__init__()
-
-        self.vlc = vlc_reader
-        self.cdmeta = cdmeta
-
-        self.current_metadata = {}
+        self._metadata = {}
 
     @property
     def metadata(self):
-        return self.current_metadata
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, value):
+        self._metadata = value
 
     @property
     def playback_status(self):
-        return self.vlc.get_playback_status()
-
-    @property
-    def position(self):
-        return self.vlc.get_position()
+        return "Playing"
 
     def next(self):
-        self.vlc.next()
+        pass
 
     def previous(self):
-        self.vlc.previous()
+        pass
 
     def play(self):
-        self.vlc.play_pause()
+        pass
 
     def pause(self):
-        self.vlc.play_pause()
+        pass
 
     def play_pause(self):
-        self.vlc.play_pause()
+        pass
 
     @property
-    def can_go_next(self):
-        return True
-
-    @property
-    def can_go_previous(self):
+    def can_control(self):
         return True
 
     @property
@@ -174,92 +146,83 @@ class CDAdapter(MprisAdapter):
         return True
 
     @property
-    def can_control(self):
+    def can_go_next(self):
+        return True
+
+    @property
+    def can_go_previous(self):
         return True
 
 
-class CDMPRISDaemon:
+class CDDaemon:
     def __init__(self):
         self.vlc = VLCReader()
-        self.cdmeta = CDMetadata()
+        self.cd = CDDatabase()
 
-        self.adapter = CDAdapter(self.vlc, self.cdmeta)
+        self.adapter = CDAdapter()
 
         self.server = Server(
             "mycdplayer",
-            adapter=self.adapter
+            adapter=self.adapter,
+            bus_name="org.mpris.MediaPlayer2.mycdplayer"
         )
 
         self.last_track = None
 
-    def extract_track_number(self, metadata):
+    def extract_track(self, metadata):
         try:
             if "xesam:trackNumber" in metadata:
                 return int(metadata["xesam:trackNumber"])
-
-            if "vlc:track_number" in metadata:
-                return int(metadata["vlc:track_number"])
-
         except Exception:
             pass
-
         return None
 
     def update_loop(self):
         while True:
 
-            if self.vlc.player is None:
+            if not self.vlc.player:
                 print("Connecting to VLC...")
                 self.vlc.connect()
 
-            metadata = self.vlc.get_metadata()
+            meta = self.vlc.metadata()
+            track = self.extract_track(meta)
 
-            track_num = self.extract_track_number(metadata)
+            if track and track != self.last_track:
+                self.last_track = track
 
-            if track_num != self.last_track and track_num is not None:
+                if track in self.cd.tracks:
 
-                self.last_track = track_num
+                    t = self.cd.tracks[track]
 
-                print("Track changed:", track_num)
-
-                if track_num in self.cdmeta.tracks:
-
-                    track = self.cdmeta.tracks[track_num]
-
-                    self.adapter.current_metadata = {
-                        "mpris:trackid": URI(f"/track/{track_num}"),
-                        "xesam:title": track["title"],
-                        "xesam:album": self.cdmeta.album,
-                        "xesam:artist": [self.cdmeta.artist],
-                        "xesam:trackNumber": track_num,
-                        "mpris:length": track["length"] * 1000,
+                    self.adapter.metadata = {
+                        "mpris:trackid": URI(f"/track/{track}"),
+                        "xesam:title": t["title"],
+                        "xesam:album": self.cd.album,
+                        "xesam:artist": [self.cd.artist],
+                        "xesam:trackNumber": track,
+                        "mpris:length": t["length"] * 1000,
                     }
 
-                    self.server.emit_properties_changed()
+                    print(f"Updated track: {t['title']}")
 
-                    print("Updated MPRIS metadata")
-
-            time.sleep(1)
+            time.sleep(0.5)
 
     def run(self):
 
         print("Loading CD metadata...")
 
-        self.cdmeta.load()
-
-        thread = threading.Thread(
-            target=self.update_loop,
-            daemon=True
-        )
-
-        thread.start()
+        self.cd.load()
 
         print("Starting MPRIS server...")
 
-        loop = GLib.MainLoop()
-        loop.run()
+        self.server.publish()   # 🔥 CRUCIALE
 
+        threading.Thread(
+            target=self.update_loop,
+            daemon=True
+        ).start()
+
+        GLib.MainLoop().run()
 
 if __name__ == "__main__":
-    daemon = CDMPRISDaemon()
-    daemon.run()
+    CDDaemon().run()
