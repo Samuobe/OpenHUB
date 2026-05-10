@@ -1614,7 +1614,7 @@ main_layout.addLayout(data_widget)
 # TIMER update
 rapid_update_timer = QTimer()
 rapid_update_timer.timeout.connect(update_gui)
-rapid_update_timer.start(500)
+rapid_update_timer.start(1500)
 
 long_update_timer = QTimer()
 long_update_timer.timeout.connect(long_update_widget)
