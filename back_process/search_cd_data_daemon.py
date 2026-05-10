@@ -1,228 +1,131 @@
 #!/usr/bin/env python3
 
+import asyncio
+import subprocess
 import time
-import threading
 import discid
 import musicbrainzngs
+import os
 
-from gi.repository import GLib
-from pydbus import SessionBus
-from mpris_server.server import Server
-from mpris_server.adapters import MprisAdapter
-from mpris_server.base import URI
-
+# Configurazione
 CD_DEVICE = "/dev/sr0"
-
-musicbrainzngs.set_useragent(
-    "CDMetadataBridge",
-    "1.0",
-    "you@example.com"
-)
-
-
-class VLCReader:
-    def __init__(self):
-        self.bus = SessionBus()
-        self.player = None
-
-    def connect(self):
-        try:
-            self.player = self.bus.get(
-                "org.mpris.MediaPlayer2.vlc",
-                "/org/mpris/MediaPlayer2"
-            )
-            return True
-        except Exception:
-            self.player = None
-            return False
-
-    def metadata(self):
-        if not self.player:
-            return {}
-        try:
-            return self.player.Player.Metadata
-        except Exception:
-            return {}
-
-    def playback_status(self):
-        if not self.player:
-            return "Stopped"
-        try:
-            return self.player.Player.PlaybackStatus
-        except Exception:
-            return "Stopped"
-
-class CDDatabase:
-    def __init__(self):
-        self.album = "Unknown Album"
-        self.artist = "Unknown Artist"
-        self.tracks = {}
-
-    def load(self):
-        try:
-            disc = discid.read(CD_DEVICE)
-
-            result = musicbrainzngs.get_releases_by_discid(
-                disc.id,
-                includes=["artists", "recordings"]
-            )
-
-            disc_data = result.get("disc", {})
-            releases = disc_data.get("release-list", [])
-
-            if not releases:
-                print("No MusicBrainz match")
-                return False
-
-            release = releases[0]
-
-            self.album = release.get("title", "Unknown Album")
-
-            if "artist-credit-phrase" in release:
-                self.artist = release["artist-credit-phrase"]
-
-            medium = release["medium-list"][0]
-
-            for track in medium["track-list"]:
-                num = int(track["position"])
-                title = track["recording"]["title"]
-                length = int(track.get("length", 0))
-
-                self.tracks[num] = {
-                    "title": title,
-                    "length": length
-                }
-
-            print(f"Loaded album: {self.album}")
-            return True
-
-        except Exception as e:
-            print("MusicBrainz error:", e)
-            return False
-
-
-class CDAdapter(MprisAdapter):
-    def __init__(self):
-        super().__init__()
-        self._metadata = {}
-
-    @property
-    def metadata(self):
-        return self._metadata
-
-    @metadata.setter
-    def metadata(self, value):
-        self._metadata = value
-
-    @property
-    def playback_status(self):
-        return "Playing"
-
-    def next(self):
-        pass
-
-    def previous(self):
-        pass
-
-    def play(self):
-        pass
-
-    def pause(self):
-        pass
-
-    def play_pause(self):
-        pass
-
-    @property
-    def can_control(self):
-        return True
-
-    @property
-    def can_play(self):
-        return True
-
-    @property
-    def can_pause(self):
-        return True
-
-    @property
-    def can_go_next(self):
-        return True
-
-    @property
-    def can_go_previous(self):
-        return True
-
+musicbrainzngs.set_useragent("CDMetadataBridge", "1.6", "your-email@example.com")
 
 class CDDaemon:
     def __init__(self):
-        self.vlc = VLCReader()
-        self.cd = CDDatabase()
+        self.album_info = {"title": "CD Audio", "artist": "Sconosciuto", "tracks": {}}
+        self.mpv_process = None
 
-        self.adapter = CDAdapter()
-
-        self.server = Server(
-            "mycdplayer",
-            adapter=self.adapter,
-            bus_name="org.mpris.MediaPlayer2.mycdplayer"
-        )
-
-        self.last_track = None
-
-    def extract_track(self, metadata):
+    def load_cd(self):
         try:
-            if "xesam:trackNumber" in metadata:
-                return int(metadata["xesam:trackNumber"])
-        except Exception:
-            pass
-        return None
-
-    def update_loop(self):
-        while True:
-
-            if not self.vlc.player:
-                print("Connecting to VLC...")
-                self.vlc.connect()
-
-            meta = self.vlc.metadata()
-            track = self.extract_track(meta)
-
-            if track and track != self.last_track:
-                self.last_track = track
-
-                if track in self.cd.tracks:
-
-                    t = self.cd.tracks[track]
-
-                    self.adapter.metadata = {
-                        "mpris:trackid": URI(f"/track/{track}"),
-                        "xesam:title": t["title"],
-                        "xesam:album": self.cd.album,
-                        "xesam:artist": [self.cd.artist],
-                        "xesam:trackNumber": track,
-                        "mpris:length": t["length"] * 1000,
+            print(f"Lettura disco: {CD_DEVICE}")
+            disc = discid.read(CD_DEVICE)
+            res = musicbrainzngs.get_releases_by_discid(disc.id, includes=["artists", "recordings"])
+            if "disc" in res and "release-list" in res["disc"]:
+                rel = res["disc"]["release-list"][0]
+                self.album_info["title"] = rel.get("title", "Unknown Album")
+                self.album_info["artist"] = rel.get("artist-credit-phrase", "Unknown Artist")
+                medium = rel["medium-list"][0]
+                for track in medium["track-list"]:
+                    num = int(track["position"])
+                    self.album_info["tracks"][num] = {
+                        "title": track["recording"]["title"],
+                        "length": int(track.get("length", 0))
                     }
+                print(f"CD Caricato: {self.album_info['title']} - {self.album_info['artist']}")
+            else:
+                self._load_defaults()
+        except Exception as e:
+            print(f"Errore CD: {e}")
+            self._load_defaults()
 
-                    print(f"Updated track: {t['title']}")
+    def _load_defaults(self):
+        self.album_info["title"] = "CD Audio"
+        self.album_info["artist"] = "Sconosciuto"
+        for i in range(1, 16):
+            self.album_info["tracks"][i] = {"title": f"Traccia {i}", "length": 180000}
 
-            time.sleep(0.5)
+    def start_ghost_player(self):
+        print("Avvio del Ghost Player (mpv)...")
+        # Aggiungiamo --no-audio per non sentire il silenzio di 1 secondo
+        cmd = ["mpv", "--idle", "--no-video", "--no-audio", "--input-ipc-server=/tmp/mpvsocket"]
+        self.mpv_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(1)
 
-    def run(self):
+    def create_tagged_file(self, track_num):
+        t = self.album_info["tracks"][track_num]
+        title = t["title"]
+        artist = self.album_info["artist"]
+        album = self.album_info["title"]
+        filename = f"/tmp/track_{track_num}.mp3"
 
-        print("Loading CD metadata...")
+        cmd = [
+            "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+            "-t", "1", 
+            "-metadata", f"title={title}",
+            "-metadata", f"artist={artist}",
+            "-metadata", f"album={album}",
+            filename
+        ]
+        
+        try:
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            return filename
+        except Exception as e:
+            print(f"Errore creazione file: {e}")
+            return None
 
-        self.cd.load()
+    def update_mpris_via_bash(self, track_num):
+        if track_num not in self.album_info["tracks"]:
+            return
 
-        print("Starting MPRIS server...")
+        filename = self.create_tagged_file(track_num)
+        if not filename:
+            return
 
-        self.server.publish()   # 🔥 CRUCIALE
+        # SEQUENZA COMANDI CRUCIALE:
+        # 1. Carica il file
+        # 2. Forza la riproduzione (Senza Play, i metadati non appaiono su MPRIS)
+        # 3. Togli la pausa
+        commands = [
+            f"loadfile {filename} approx 0",
+            "set pause no",
+            "play"
+        ]
+        
+        full_cmd = "\n".join(commands)
+        
+        try:
+            # Usiamo socat per inviare i comandi
+            subprocessC = f"echo '{full_cmd}' | socat - UNIX-CONNECT:/tmp/mpvsocket"
+            subprocess.run(subprocessC, shell=True, stderr=subprocess.DEVNULL)
+            print(f"MPRIS Update -> {self.album_info['artist']} - {self.album_info['title']} (Traccia {track_num})")
+        except Exception as e:
+            print(f"Errore comando bash: {e}")
 
-        threading.Thread(
-            target=self.update_loop,
-            daemon=True
-        ).start()
-
-        GLib.MainLoop().run()
+    async def run(self):
+        self.load_cd()
+        self.start_ghost_player()
+        
+        track = 1
+        try:
+            while True:
+                print(f"Simulando riproduzione Traccia {track}...")
+                self.update_mpris_via_bash(track)
+                
+                # Attendi 30 secondi per lo scrobbling di ListenBrainz
+                await asyncio.sleep(30)
+                
+                track = track + 1 if (track + 1) in self.album_info["tracks"] else 1
+        except KeyboardInterrupt:
+            print("\nSpegnimento...")
+        finally:
+            if self.mpv_process:
+                self.mpv_process.terminate()
 
 if __name__ == "__main__":
-    CDDaemon().run()
+    daemon = CDDaemon()
+    try:
+        asyncio.run(daemon.run())
+    except KeyboardInterrupt:
+        pass
