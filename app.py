@@ -522,11 +522,13 @@ class ScreenSaver(QWidget):
         self._set_label_pix(self.front_label, self._get_current_pixmap_or_none())
         self.front_fx.setOpacity(1.0)
         self.back_fx.setOpacity(0.0)
-        self.update_now_playing()
+        
 
         self._ss_last_title = ""
         self._ss_last_album = ""
         self._ss_last_release_id = ""
+
+        self.update_now_playing()
 
     def _scaled(self, pix: QPixmap) -> QPixmap:
         target_h = int(self.height() * self.IMAGE_HEIGHT_RATIO)
