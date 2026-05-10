@@ -810,7 +810,7 @@ def update_gui():
     update_time()
     if setting_status(music_widget_status):
         update_music()
-    root.repaint()
+    #root.repaint()
 
 
 #LONG
