@@ -114,6 +114,10 @@ from PyQt6.QtGui import QAction
 from other_windows.bluetooth_manager import open_bluetooth_window
 import Lattuga.tools as my_tools
 import glob
+import discid
+import os, glob, subprocess
+from PyQt6.QtWidgets import QStackedLayout, QGraphicsOpacityEffect
+from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
 
 style_widget = """
     QLabel {
@@ -290,11 +294,6 @@ class ActivityFilter(QObject):
 
         return False
 
-
-import os, glob, subprocess
-from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QStackedLayout, QGraphicsOpacityEffect
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QPixmap
 
 class ScreenSaver(QWidget):
     IMAGE_HEIGHT_RATIO = 0.78 #% space image in monitor
@@ -703,6 +702,24 @@ def wait_keyword():
 
 #UPDATE GUI
 
+def lookup_cd_metadata():
+    try:
+        disc = discid.read('/dev/cdrom')  # o /dev/sr0 secondo il tuo device
+        disc_id = disc.id
+        result = musicbrainzngs.get_releases_by_discid(disc_id, includes=["recordings", "artists"])
+        # Prendi il primo release trovato
+        for release in result.get('disc', {}).get('release-list', []):
+            album = release.get('title', 'CD Audio')
+            artist = release['artist-credit'][0]['artist']['name'] if 'artist-credit' in release else 'Sconosciuto'
+            track_titles = []
+            for med in release.get('medium-list', []):
+                for track in med.get('track-list', []):
+                    track_titles.append(track['recording']['title'])
+            return album, artist, track_titles
+    except Exception as e:
+        print(f"MusicBrainz lookup failed: {e}")
+    return None, None, None
+
 def update_time():
     time_now = datetime.datetime.now().strftime("%H:%M \n %d/%m/%Y")
     label_time.setText(time_now)
@@ -733,35 +750,73 @@ def update_music():
     try:
         if is_mpv_running():
             music_data_raw = subprocess.check_output(
-                ["playerctl", "-p", "mpv","metadata", "--format", "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}"],
+                ["playerctl", "-p", "mpv","metadata", "--format", "{{xesam:url}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}|||{{xesam:tracknumber}}"],
                 timeout=0.2,
                 text=True,
                 stderr=subprocess.DEVNULL
             )
         else:
             music_data_raw = subprocess.check_output(
-                ["playerctl", "metadata", "--format", "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}"],
+                ["playerctl", "metadata", "--format", "{{xesam:url}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}|||{{xesam:tracknumber}}"],
                 timeout=0.2,
                 text=True,
                 stderr=subprocess.DEVNULL
             )
         music_data = music_data_raw.strip().split("|||")
-        if len(music_data) >= 8:
-            active_player_name = music_data[7].strip()
+
+        if len(music_data) >= 10:
+            url        = music_data[0]
+            artist     = music_data[1]
+            title      = music_data[2]
+            album      = music_data[3]
+            music_status = music_data[5]
+            player     = music_data[8]
+            tracknum   = music_data[9]
+            active_player_name = player.strip()
+        else:
+            url = artist = title = album = music_status = player = tracknum = ""
+            active_player_name = None
+
+        if url.startswith("cdda://") or (player and "vlc" in player.lower()):
+            try:
+                track_n = int(tracknum) if tracknum.strip().isdigit() else 1
+            except: track_n = 1
+
+            cd_album, cd_artist, cd_tracks = lookup_cd_metadata("/dev/sr0")
+            show_artist = cd_artist or "CD Audio"
+            show_album  = cd_album  or "Audio CD"
+            if cd_tracks and 0 < track_n <= len(cd_tracks):
+                show_title = cd_tracks[track_n - 1]
+            else:
+                show_title = f"Traccia {track_n}"
+
+            if show_title != last_title:
+                last_title = show_title
+                music_artist.setText(f"{lpak.get('Artist', language)}: {show_artist}")
+                music_title.setText(f"{lpak.get('Title', language)}: {show_title}")
+                music_album.setText(f"{lpak.get('Album', language)}: {show_album}")
+                set_cover_or_emoji(None)  # Fallback emoji oppure puoi cercare la cover su MusicBrainz
+
+            if music_status.strip().lower() == "playing":
+                music_play_button.setText("⏸️")
+            else:
+                music_play_button.setText("▶️")
+            return 
+
         if len(music_data) >= 5:
-            artist = music_data[0]
-            title = music_data[1]
-            album = music_data[2]
-            music_status = music_data[4]
+            artist = music_data[1]
+            title = music_data[2]
+            album = music_data[3]
+            music_status = music_data[5]
         
             if title != last_title:
                 last_title = title
-                music_artist.setText(f"{lpak.get("Artist", language)}: {artist}")
+                music_artist.setText(f"{lpak.get('Artist', language)}: {artist}")
                 if "stream.view?" in title:
-                    music_title.setText(f"{lpak.get("Loading", language)}...")
+                    music_title.setText(f"{lpak.get('Loading', language)}...")
                 else:
-                    music_title.setText(f"{lpak.get("Title", language)}: {title}")
-                music_album.setText(f"{lpak.get("Album", language)}: {album}")
+                    music_title.setText(f"{lpak.get('Title', language)}: {title}")
+                music_album.setText(f"{lpak.get('Album', language)}: {album}")
 
                 music_cover_label.setPixmap(QPixmap())
                 music_cover_label.setText("⏳")
@@ -772,7 +827,6 @@ def update_music():
                         text-align: center;
                     """) 
 
-         
                 new_cover_thread = CoverWorker(artist, album, title)
                 active_threads.append(new_cover_thread)
 

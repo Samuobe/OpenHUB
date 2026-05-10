@@ -17,3 +17,4 @@ instalation_type.info
 .cache.sqlite
 *.data
 config.conf
+*TEST*
