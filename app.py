@@ -790,6 +790,7 @@ def update_music():
                 music_play_button.clicked.connect(lambda: play_song_command(1))
                 
     except subprocess.TimeoutExpired:
+        print("time endeed")
         pass
 
     except subprocess.CalledProcessError:
