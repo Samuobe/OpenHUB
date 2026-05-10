@@ -781,17 +781,23 @@ def update_music():
                         
                 new_cover_thread.finished.connect(cleanup_and_set)
                 new_cover_thread.start()
-                
-            if music_status == "Playing":
-                music_play_button.setText("⏸️")
-                music_play_button.clicked.connect(lambda: play_song_command(2))
                 if last_title != "unknow_title_1":
                     if music_title.text().replace("...", "") == lpak.get("Initialization", language):
                         music_title.setText("Unknown CD")
                         last_title == "unknow_title_1"
+                
+            if music_status == "Playing":
+                music_play_button.setText("⏸️")
+                music_play_button.clicked.connect(lambda: play_song_command(2))
+                
             else:
                 music_play_button.setText("▶️")
                 music_play_button.clicked.connect(lambda: play_song_command(1))
+        
+        elif music_status == "Playing":
+            music_title.setText("Unknown Media")
+            last_title == "unknow_title_1"
+
                 
     except subprocess.TimeoutExpired:
         pass
