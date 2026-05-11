@@ -42,8 +42,10 @@ musicbrainzngs.set_useragent("OpenHUB", "0.1", "https://github.com/Samuobe/OpenH
 #global gabbage
 active_player_name = None
 last_title = ""
-active_threads = []
 
+#Threads
+active_threads = []
+current_cover_thread = None
 
 app = QApplication(sys.argv)
 
@@ -145,16 +147,10 @@ def get_playing(player: str = None):
                 text=True,
                 timeout=0.3
             ).strip()
-
-            status, artist, title, album, name = out.split("|||")
-            if status.lower() != "playing":
-                return None
-
             return out
 
         except Exception:
             return None
-
 
     if player is None:
         try:
@@ -548,27 +544,55 @@ class CoverWorker(QThread):
 
     def __init__(self, artist, album, title):
         super().__init__()
-        self.artist = artist
-        self.album = album
-        self.title = title
+        self.artist = artist.strip() if artist else ""
+        self.album = album.strip() if album else ""
+        self.title = title.strip() if title else ""
 
     def run(self):
         try:
-            search_query = self.album if self.album and len(self.album) > 2 else self.title
-            result = musicbrainzngs.search_releases(artist=self.artist, release=search_query, limit=1)
+            musicbrainzngs.set_timeout(5)
+            if self.isInterruptionRequested():
+                return
+
+            # Costruiamo la query
+            search_query = f"{self.artist} {self.album or self.title}".strip()
+            print(f"\n[DEBUG COVER] 🔍 Avvio ricerca per: '{search_query}'")
+            print(f"[DEBUG COVER] Dettagli -> Artista: '{self.artist}', Album: '{self.album}', Titolo: '{self.title}'")
+
+            # Evitiamo di cercare se i metadati sono palesemente vuoti o tracce generiche di un CD
+            if not search_query or search_query.lower() in ["audio cd", "track 01", ""]:
+                print("[DEBUG COVER] ⚠️ Metadati generici o vuoti (probabile CD senza CD-Text). Salto la ricerca.")
+                self.finished.emit(None)
+                return
+
+            result = musicbrainzngs.search_releases(query=search_query, limit=1)
+            
+            if self.isInterruptionRequested():
+                return
             
             if result['release-list']:
                 release_id = result['release-list'][0]['id']
-                url = f"https://coverartarchive.org/release/{release_id}/front-250"
+                url = f"https://coverartarchive.org/release/{release_id}/front"
+                print(f"[DEBUG COVER] 🔗 Release trovata! Scarico da: {url}")
+                
                 response = requests.get(url, timeout=5)
                 
+                if self.isInterruptionRequested():
+                    return
+                
                 if response.status_code == 200:
+                    print("[DEBUG COVER] ✅ Copertina scaricata con successo!")
                     self.finished.emit(response.content) 
                     return
+                else:
+                    print(f"[DEBUG COVER] ❌ Errore CoverArtArchive: HTTP {response.status_code}")
+            else:
+                print("[DEBUG COVER] ❌ Nessun album trovato su MusicBrainz per questa query.")
             
             self.finished.emit(None)
+
         except Exception as e:
-            print(f"Cover error: {e}")
+            print(f"[DEBUG COVER] 💥 Errore critico nel worker: {e}")
             self.finished.emit(None)
 
 class VoiceWorker(QThread):
@@ -758,11 +782,9 @@ def update_time():
     time_now = datetime.datetime.now().strftime("%H:%M \n %d/%m/%Y")
     label_time.setText(time_now)
 
-
 def update_music():
     global last_title, current_cover_thread
-    global music_container, music_artist, music_title, music_title_label, music_album, music_play_button, music_cover_label
-    global music_next_song_button, music_previus_song_button, music_volume_up_button, music_volume_down_button, music_layout
+    global music_artist, music_title, music_album, music_play_button, music_cover_label
 
     def set_cover_or_emoji(result):
         if result:
@@ -770,6 +792,8 @@ def update_music():
             pixmap.loadFromData(result)
             music_cover_label.setPixmap(pixmap)
             music_cover_label.setText("")
+            # IMPORTANTE: Rimuoviamo lo stile grigio dell'emoji per far vedere bene la copertina
+            music_cover_label.setStyleSheet("") 
         else:
             music_cover_label.setPixmap(QPixmap())
             music_cover_label.setText("🎵")
@@ -781,11 +805,9 @@ def update_music():
             """)
             music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-    try:
-        if is_mpv_running():
-            music_data_raw = get_playing("mpv")
-        else:
-            music_data_raw = get_playing()
+    try:         
+        music_data_raw = get_playing()
+        # print(music_data_raw)  # Decommenta se serve fare debug
 
         if not music_data_raw:
             music_title.setText(lpak.get("Nothing is playing", language))
@@ -794,49 +816,65 @@ def update_music():
             return
 
         parts = music_data_raw.strip().split("|||")
-
         if len(parts) < 5:
             return
 
-        status = parts[0]
-        artist = parts[1]
-        title = parts[2]
-        album = parts[3]
-        player = parts[4]
+        status, artist, title, album, player = parts
 
         if title != last_title:
             last_title = title
 
             music_artist.setText(f"{lpak.get('Artist', language)}: {artist}")
-
-            if "stream.view?" in title:
-                music_title.setText(f"{lpak.get('Loading', language)}...")
-            else:
-                music_title.setText(f"{lpak.get('Title', language)}: {title}")
-
+            music_title.setText(
+                f"{lpak.get('Title', language)}: {title}"
+                if "stream.view?" not in title
+                else f"{lpak.get('Loading', language)}..."
+            )
             music_album.setText(f"{lpak.get('Album', language)}: {album}")
+
+            # --- GESTIONE THREAD CORRETTA ---
+            if current_cover_thread and current_cover_thread.isRunning():
+                current_cover_thread.requestInterruption()
+                # Scolleghiamo il segnale: se il thread ci mette tempo a morire, 
+                # non andrà a modificare la UI della nuova canzone.
+                try:
+                    current_cover_thread.finished.disconnect()
+                except Exception:
+                    pass 
+                
+                if current_cover_thread in active_threads:
+                    active_threads.remove(current_cover_thread)
+            # --------------------------------
 
             music_cover_label.setPixmap(QPixmap())
             music_cover_label.setText("⏳")
+            music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            music_cover_label.setStyleSheet("""
+                background-color: #ddd;
+                border-radius: 10px;
+                font-size: 70px;
+                text-align: center;
+            """)
 
-            new_cover_thread = CoverWorker(artist, album, title)
-            active_threads.append(new_cover_thread)
+            current_cover_thread = CoverWorker(artist, album, title)
+            active_threads.append(current_cover_thread)
 
-            def cleanup_and_set(result, thread_ref=new_cover_thread):
-                set_cover_or_emoji(result)
+            # Usiamo un controllo di sicurezza per assicurarci che il thread
+            # che ha finito sia effettivamente quello attualmente attivo
+            def cleanup_and_set(result, thread_ref=current_cover_thread):
+                if thread_ref == current_cover_thread:
+                    set_cover_or_emoji(result)
                 if thread_ref in active_threads:
                     active_threads.remove(thread_ref)
 
-            new_cover_thread.finished.connect(cleanup_and_set)
-            new_cover_thread.start()
+            current_cover_thread.finished.connect(cleanup_and_set)
+            current_cover_thread.start()
 
         if status.lower() == "playing":
             music_play_button.setText("⏸️")
-            music_play_button.clicked.connect(lambda: play_song_command(2))
         else:
             music_play_button.setText("▶️")
-            music_play_button.clicked.connect(lambda: play_song_command(1))
-
+      
     except subprocess.TimeoutExpired:
         pass
 
@@ -1349,31 +1387,24 @@ def previous_song_command(_checked=False):
     elif is_mpv_running():
         base += ["-p", "mpv"]
     subprocess.Popen(base + ["previous"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-def play_song_command(_checked=False):    
+def play_song_command(_checked=False):
     global active_player_name
 
-   
     base = ["playerctl"]
+
     if active_player_name:
         base += ["-p", active_player_name]
-    else:
-        if is_mpv_running():
-            base += ["-p", "mpv"]
+    elif is_mpv_running():
+        base += ["-p", "mpv"]
 
     try:
-        status = subprocess.check_output(
-            base + ["status"],
-            stderr=subprocess.DEVNULL,
-            text=True,
-            timeout=0.3
-        ).strip().lower()
+        subprocess.Popen(
+            base + ["play-pause"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
     except:
-        status = ""
-
-    if "playing" in status:
-        subprocess.Popen(base + ["pause"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    else:
-        subprocess.Popen(base + ["play"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        pass
 def turn_up_volume():
     try:
         original_volume = mixer.getvolume()[0]
@@ -1456,6 +1487,7 @@ def create_music_widget():
     music_layout.addLayout(buttons_layout, 3, 0, 1, 2)
 
 if setting_status(music_widget_status):
+    music_play_button = None
     create_music_widget()
 
 #calendar
