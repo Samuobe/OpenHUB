@@ -1475,6 +1475,8 @@ def create_weather_widget():
             emoji = "⛈️"
         elif weather == "Thunderstorm":
             emoji = "⚡"
+        else:
+            emoji = "❓"
         return f"{weather_translation} - {emoji}"
     
     h=time_now = datetime.datetime.now().strftime("%H")   
