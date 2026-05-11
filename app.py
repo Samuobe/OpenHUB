@@ -130,6 +130,64 @@ if os.path.isfile(f"{data_path}conversation.json"):
     os.remove(f"{data_path}conversation.json")
 
 
+def get_playing(player: str = None):
+
+    def query(p):
+        try:
+            out = subprocess.check_output(
+                [
+                    "playerctl", "metadata",
+                    "-p", p,
+                    "--format",
+                    "{{status}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}"
+                ],
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=0.3
+            ).strip()
+
+            status, artist, title, album, name = out.split("|||")
+            if status.lower() != "playing":
+                return None
+
+            return out
+
+        except Exception:
+            return None
+
+
+    if player is None:
+        try:
+            players = subprocess.check_output(
+                ["playerctl", "-l"],
+                text=True,
+                stderr=subprocess.DEVNULL
+            ).splitlines()
+
+            for p in players:
+                if p.startswith("mpv.instance-"):
+                    result = query(p)
+                    if result:
+                        return result
+
+            for p in players:
+                if p == "mpv":
+                    result = query(p)
+                    if result:
+                        return result
+
+            for p in players:
+                result = query(p)
+                if result:
+                    return result
+
+            return None
+
+        except Exception:
+            return None
+
+    else:
+        return query(player)
 
 def show_big_advice(testo):
     global current_popup, idle
@@ -440,15 +498,8 @@ class ScreenSaver(QWidget):
             ))
 
     def update_now_playing(self):
-        try:
-            raw = subprocess.check_output(
-                ["playerctl", "metadata", "--format",
-                 "{{status}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}"],
-                stderr=subprocess.DEVNULL,
-                text=True,
-                timeout=0.3
-            ).strip()
-        except Exception:
+        raw = get_playing()
+        if raw == None:
             self.music_label.setText("Nothing playing")
             return
 
@@ -706,99 +757,91 @@ def wait_keyword():
 def update_time():
     time_now = datetime.datetime.now().strftime("%H:%M \n %d/%m/%Y")
     label_time.setText(time_now)
-    
+
+
 def update_music():
     global last_title, current_cover_thread
     global music_container, music_artist, music_title, music_title_label, music_album, music_play_button, music_cover_label
     global music_next_song_button, music_previus_song_button, music_volume_up_button, music_volume_down_button, music_layout
-    
+
     def set_cover_or_emoji(result):
         if result:
             pixmap = QPixmap()
             pixmap.loadFromData(result)
             music_cover_label.setPixmap(pixmap)
-            music_cover_label.setText("") 
+            music_cover_label.setText("")
         else:
-            music_cover_label.setPixmap(QPixmap()) 
+            music_cover_label.setPixmap(QPixmap())
             music_cover_label.setText("🎵")
             music_cover_label.setStyleSheet("""
-                background-color: #ddd; 
-                border-radius: 10px; 
-                font-size: 70px; 
+                background-color: #ddd;
+                border-radius: 10px;
+                font-size: 70px;
                 text-align: center;
             """)
             music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     try:
         if is_mpv_running():
-            music_data_raw = subprocess.check_output(
-                ["playerctl", "-p", "mpv","metadata", "--format", "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}"],
-                timeout=0.2,
-                text=True,
-                stderr=subprocess.DEVNULL
-            )
+            music_data_raw = get_playing("mpv")
         else:
-            music_data_raw = subprocess.check_output(
-                ["playerctl", "metadata", "--format", "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}"],
-                timeout=0.2,
-                text=True,
-                stderr=subprocess.DEVNULL
-            )
-        music_data = music_data_raw.strip().split("|||")
-        
-        if len(music_data) >= 5:
-            artist = music_data[0]
-            title = music_data[1]
-            album = music_data[2]
-            music_status = music_data[4]
-        
-            if title != last_title:
-                last_title = title
-                music_artist.setText(f"{lpak.get("Artist", language)}: {artist}")
-                if "stream.view?" in title:
-                    music_title.setText(f"{lpak.get("Loading", language)}...")
-                else:
-                    music_title.setText(f"{lpak.get("Title", language)}: {title}")
-                music_album.setText(f"{lpak.get("Album", language)}: {album}")
+            music_data_raw = get_playing()
 
-                music_cover_label.setPixmap(QPixmap())
-                music_cover_label.setText("⏳")
-                music_cover_label.setStyleSheet("""
-                        background-color: #ddd; 
-                        border-radius: 10px; 
-                        font-size: 70px; 
-                        text-align: center;
-                    """) 
+        if not music_data_raw:
+            music_title.setText(lpak.get("Nothing is playing", language))
+            music_artist.setText("")
+            music_album.setText("")
+            return
 
-         
-                new_cover_thread = CoverWorker(artist, album, title)
-                active_threads.append(new_cover_thread)
+        parts = music_data_raw.strip().split("|||")
 
-                def cleanup_and_set(result, thread_ref=new_cover_thread):
-                    set_cover_or_emoji(result)
-                    if thread_ref in active_threads:
-                        active_threads.remove(thread_ref)
-                        
-                new_cover_thread.finished.connect(cleanup_and_set)
-                new_cover_thread.start()
-                
-            if music_status == "Playing":
-                music_play_button.setText("⏸️")
-                music_play_button.clicked.connect(lambda: play_song_command(2))
-                if last_title != "unknow_title_1":
-                    if music_title.text().replace("...", "") == lpak.get("Initialization", language):
-                        music_title.setText("Unknown CD")
-                        last_title == "unknow_title_1"
+        if len(parts) < 5:
+            return
+
+        status = parts[0]
+        artist = parts[1]
+        title = parts[2]
+        album = parts[3]
+        player = parts[4]
+
+        if title != last_title:
+            last_title = title
+
+            music_artist.setText(f"{lpak.get('Artist', language)}: {artist}")
+
+            if "stream.view?" in title:
+                music_title.setText(f"{lpak.get('Loading', language)}...")
             else:
-                music_play_button.setText("▶️")
-                music_play_button.clicked.connect(lambda: play_song_command(1))
-                
+                music_title.setText(f"{lpak.get('Title', language)}: {title}")
+
+            music_album.setText(f"{lpak.get('Album', language)}: {album}")
+
+            music_cover_label.setPixmap(QPixmap())
+            music_cover_label.setText("⏳")
+
+            new_cover_thread = CoverWorker(artist, album, title)
+            active_threads.append(new_cover_thread)
+
+            def cleanup_and_set(result, thread_ref=new_cover_thread):
+                set_cover_or_emoji(result)
+                if thread_ref in active_threads:
+                    active_threads.remove(thread_ref)
+
+            new_cover_thread.finished.connect(cleanup_and_set)
+            new_cover_thread.start()
+
+        if status.lower() == "playing":
+            music_play_button.setText("⏸️")
+            music_play_button.clicked.connect(lambda: play_song_command(2))
+        else:
+            music_play_button.setText("▶️")
+            music_play_button.clicked.connect(lambda: play_song_command(1))
+
     except subprocess.TimeoutExpired:
         pass
 
     except subprocess.CalledProcessError:
-        title = lpak.get("Nothing is playing", language)
-        music_title.setText(title)
+        music_title.setText(lpak.get("Nothing is playing", language))
         music_artist.setText("")
         music_album.setText("")
         music_cover_label.setPixmap(QPixmap())

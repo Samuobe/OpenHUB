@@ -1,24 +1,36 @@
+from pydub import AudioSegment
+from mutagen.id3 import ID3, TIT2, TPE1, TALB, ID3NoHeaderError
 from python_mpv_jsonipc import MPV
 import time
 
-FILE = "/home/samuobe/music/numb.mp3"
+OUTPUT = "/tmp/fake_track.mp3"
+
+TITLE = "Numb"
+ARTIST = "Linkin Park"
+ALBUM = "Meteora"
+
+AudioSegment.silent(duration=180000).export(OUTPUT, format="mp3")
+
+try:
+    tags = ID3(OUTPUT)
+except ID3NoHeaderError:
+    tags = ID3()
+
+tags["TIT2"] = TIT2(encoding=3, text=TITLE)
+tags["TPE1"] = TPE1(encoding=3, text=ARTIST)
+tags["TALB"] = TALB(encoding=3, text=ALBUM)
+tags.save(OUTPUT)
+
+print("Fake MP3 creato")
 
 mpv = MPV()
+mpv.loadfile(OUTPUT, "replace")
 
-print("Loading...")
+time.sleep(1)
 
-# ✔ carica file
-mpv.loadfile(FILE, "replace")
+mpv.command("seek", 0, "absolute")
 
-time.sleep(0.5)
-
-# ✔ METADATA VISIBILE (modo corretto)
-mpv.command("show-text", "Linkin Park - Numb", 3000)
-
-# ✔ TITOLO FINESTRA (CORRETTO VIA PROPERTY DIRECTA)
-mpv.force_media_title = "Linkin Park - Numb"
-
-print("Playing single track")
+print("Playing")
 
 while True:
     time.sleep(1)
