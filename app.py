@@ -149,57 +149,52 @@ def is_fake_mpv_running():
         return False
 
 def get_playing(player: str = None):
-
-    def query(p):
+    def query(p, format_string="{{status}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}"):
         try:
-            out = subprocess.check_output(
-                [
-                    "playerctl", "metadata",
-                    "-p", p,
-                    "--format",
-                    "{{status}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}"
-                ],
-                stderr=subprocess.DEVNULL,
-                text=True,
-                timeout=0.3
+            return subprocess.check_output(
+                ["playerctl", "metadata", "-p", p, "--format", format_string],
+                stderr=subprocess.DEVNULL, text=True, timeout=0.3
             ).strip()
-            return out
-
-        except Exception:
+        except:
             return None
 
-    if player is None:
-        try:
-            players = subprocess.check_output(
-                ["playerctl", "-l"],
-                text=True,
-                stderr=subprocess.DEVNULL
-            ).splitlines()
+    try:
+        players = subprocess.check_output(["playerctl", "-l"], text=True, stderr=subprocess.DEVNULL).splitlines()
+        
+        # --- CASO CRITICO: CD IN CORSO (Fake MPV attivo) ---
+        fake_mpv = next((p for p in players if p.startswith("mpv.instance-")), None)
+        
+        if fake_mpv:
+            # 1. Prendiamo i METADATI dal fake MPV (Titolo, Artista, Album)
+            meta_data = query(fake_mpv, "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}")
+            # 2. Prendiamo lo STATO reale da VLC (Playing/Paused)
+            real_status = "paused"
+            try:
+                real_status = subprocess.check_output(
+                    ["playerctl", "-p", "vlc", "status"], 
+                    stderr=subprocess.DEVNULL, text=True
+                ).strip().lower()
+            except:
+                pass
+            
+            if meta_data:
+                # Ricostruiamo la stringa mettendo lo stato di VLC all'inizio
+                return f"{real_status}|||{meta_data}"
 
-            for p in players:
-                if p.startswith("mpv.instance-"):
-                    result = query(p)
-                    if result:
-                        return result
+        # --- CASO NORMALE: Altri player ---
+        for p in ["mpv", "vlc"]: # Prova i player standard
+            if p in players:
+                res = query(p)
+                if res: return res
 
-            for p in players:
-                if p == "mpv":
-                    result = query(p)
-                    if result:
-                        return result
+        # Fallback sull'ultimo player rilevato
+        for p in players:
+            res = query(p)
+            if res: return res
 
-            for p in players:
-                result = query(p)
-                if result:
-                    return result
-
-            return None
-
-        except Exception:
-            return None
-
-    else:
-        return query(player)
+    except Exception:
+        pass
+    return None
 
 def show_big_advice(testo):
     global current_popup, idle
@@ -560,6 +555,8 @@ class CoverWorker(QThread):
 
     def __init__(self, artist, album, title):
         super().__init__()
+        if album == "":
+            return
         self.artist = artist
         self.album = album
         self.title = title
@@ -770,37 +767,43 @@ def update_time():
     time_now = datetime.datetime.now().strftime("%H:%M \n %d/%m/%Y")
     label_time.setText(time_now)
 
+last_title = ""
+last_album_artist = ""
+current_cover_thread = None
+
 def update_music():
-    global last_title, current_cover_thread
+    global last_title, last_album_artist, current_cover_thread
     global music_artist, music_title, music_album, music_play_button, music_cover_label
 
-    def set_cover_or_emoji(result):
+    def set_cover_or_emoji(result=None, loading=False):
+        """Gestisce lo stato della cover: Immagine, Loading o Emoji di default."""
+        music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if result:
             pixmap = QPixmap()
             pixmap.loadFromData(result)
             music_cover_label.setPixmap(pixmap)
             music_cover_label.setText("")
-            # IMPORTANTE: Rimuoviamo lo stile grigio dell'emoji per far vedere bene la copertina
-            music_cover_label.setStyleSheet("") 
+            music_cover_label.setStyleSheet("border-radius: 10px;") 
         else:
             music_cover_label.setPixmap(QPixmap())
-            music_cover_label.setText("🎵")
+            music_cover_label.setText("⏳" if loading else "🎵")
             music_cover_label.setStyleSheet("""
                 background-color: #ddd;
                 border-radius: 10px;
                 font-size: 70px;
-                text-align: center;
             """)
-            music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     try:         
         music_data_raw = get_playing()
-        # print(music_data_raw)  # Decommenta se serve fare debug
 
         if not music_data_raw:
-            music_title.setText(lpak.get("Nothing is playing", language))
-            music_artist.setText("")
-            music_album.setText("")
+            if last_title != "": 
+                music_title.setText(lpak.get("Nothing is playing", language))
+                music_artist.setText("")
+                music_album.setText("")
+                last_title = ""
+                last_album_artist = ""
+                set_cover_or_emoji(None)
             return
 
         parts = music_data_raw.strip().split("|||")
@@ -811,51 +814,31 @@ def update_music():
 
         if title != last_title:
             last_title = title
-
             music_artist.setText(f"{lpak.get('Artist', language)}: {artist}")
-            music_title.setText(
-                f"{lpak.get('Title', language)}: {title}"
-                if "stream.view?" not in title
-                else f"{lpak.get('Loading', language)}..."
-            )
+            music_title.setText(title if "stream.view?" not in title else "Loading...")
             music_album.setText(f"{lpak.get('Album', language)}: {album}")
 
-            # --- GESTIONE THREAD CORRETTA ---
-            if current_cover_thread and current_cover_thread.isRunning():
-                current_cover_thread.requestInterruption()
-                # Scolleghiamo il segnale: se il thread ci mette tempo a morire, 
-                # non andrà a modificare la UI della nuova canzone.
+        current_album_artist = f"{artist}|||{album}"
+        if current_album_artist != last_album_artist:
+            last_album_artist = current_album_artist
+            if current_cover_thread:
                 try:
                     current_cover_thread.finished.disconnect()
-                except Exception:
-                    pass 
-                
-                if current_cover_thread in active_threads:
-                    active_threads.remove(current_cover_thread)
-            # --------------------------------
+                except:
+                    pass
 
-            music_cover_label.setPixmap(QPixmap())
-            music_cover_label.setText("⏳")
-            music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            music_cover_label.setStyleSheet("""
-                background-color: #ddd;
-                border-radius: 10px;
-                font-size: 70px;
-                text-align: center;
-            """)
+            set_cover_or_emoji(None, loading=True)
 
             current_cover_thread = CoverWorker(artist, album, title)
-            active_threads.append(current_cover_thread)
-
-            # Usiamo un controllo di sicurezza per assicurarci che il thread
-            # che ha finito sia effettivamente quello attualmente attivo
-            def cleanup_and_set(result, thread_ref=current_cover_thread):
+            
+            def on_finished(result, thread_ref=current_cover_thread):
                 if thread_ref == current_cover_thread:
                     set_cover_or_emoji(result)
                 if thread_ref in active_threads:
                     active_threads.remove(thread_ref)
 
-            current_cover_thread.finished.connect(cleanup_and_set)
+            current_cover_thread.finished.connect(on_finished)
+            active_threads.append(current_cover_thread)
             current_cover_thread.start()
 
         if status.lower() == "playing":
@@ -863,17 +846,8 @@ def update_music():
         else:
             music_play_button.setText("▶️")
       
-    except subprocess.TimeoutExpired:
+    except Exception:
         pass
-
-    except subprocess.CalledProcessError:
-        music_title.setText(lpak.get("Nothing is playing", language))
-        music_artist.setText("")
-        music_album.setText("")
-        music_cover_label.setPixmap(QPixmap())
-        music_cover_label.setText("🎵")
-        last_title = ""
-
 
 def update_gui():
     update_time()
@@ -1360,47 +1334,44 @@ label_time.setAlignment(Qt.AlignmentFlag.AlignCenter)
 #music
 music_container, music_artist, music_title, music_title_label, music_album, music_play_button = None, None, None, None, None, None
 music_next_song_button, music_previus_song_button, music_volume_up_button, music_volume_down_button, music_layout, music_cover_label = None, None, None, None, None, None
-def next_song_command(_checked=False):
-    base = ["playerctl"]
 
-    if is_fake_mpv_running():
-        base += ["-p", "vlc"]
-    elif active_player_name:
-        base += ["-p", active_player_name]
-    elif is_mpv_running():
-        base += ["-p", "mpv"]
-    subprocess.Popen(base + ["next"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def get_target_player():
+    try:
+        players = subprocess.check_output(["playerctl", "-l"], text=True).splitlines()
+        
+        # PRIORITÀ 1: Se esiste un'istanza fake di MPV, 
+        # significa che stiamo leggendo un CD. Il comando VA a VLC.
+        for p in players:
+            if p.startswith("mpv.instance-"):
+                return "vlc"
+
+        # PRIORITÀ 2: Se VLC è aperto (anche senza CD), usiamo quello
+        if "vlc" in players:
+            return "vlc"
+
+        # PRIORITÀ 3: Altrimenti usiamo il player attivo rilevato dall'interfaccia
+        if active_player_name:
+            return active_player_name
+
+        return None
+    except:
+        return None
+
+def next_song_command(_checked=False):
+    target = get_target_player()
+    if target:
+        # Usiamo Popen per non bloccare la UI
+        subprocess.Popen(["playerctl", "-p", target, "next"])
 
 def previous_song_command(_checked=False):
-    base = ["playerctl"]
+    target = get_target_player()
+    if target:
+        subprocess.Popen(["playerctl", "-p", target, "previous"])
 
-    if is_fake_mpv_running():
-        base += ["-p", "vlc"]
-    elif active_player_name:
-        base += ["-p", active_player_name]
-    elif is_mpv_running():
-        base += ["-p", "mpv"]
-    subprocess.Popen(base + ["previous"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 def play_song_command(_checked=False):
-    global active_player_name
-
-    base = ["playerctl"]
-
-    if is_fake_mpv_running():
-        base += ["-p", "vlc"]
-    elif active_player_name:
-        base += ["-p", active_player_name]
-    elif is_mpv_running():
-        base += ["-p", "mpv"]
-
-    try:
-        subprocess.Popen(
-            base + ["play-pause"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-    except:
-        pass
+    target = get_target_player()
+    if target:
+        subprocess.Popen(["playerctl", "-p", target, "play-pause"])
 def turn_up_volume():
     try:
         original_volume = mixer.getvolume()[0]
