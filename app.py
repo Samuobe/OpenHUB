@@ -568,7 +568,7 @@ class CoverWorker(QThread):
             
             if result['release-list']:
                 release_id = result['release-list'][0]['id']
-                url = f"https://coverartarchive.org/release/{release_id}/front-250"
+                url = f"https://coverartarchive.org/release/{release_id}/front"
                 response = requests.get(url, timeout=5)
                 
                 if response.status_code == 200:
