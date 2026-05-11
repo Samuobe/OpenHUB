@@ -131,6 +131,22 @@ style_widget = """
 if os.path.isfile(f"{data_path}conversation.json"):
     os.remove(f"{data_path}conversation.json")
 
+def is_fake_mpv_running():
+    try:
+        players = subprocess.check_output(
+            ["playerctl", "-l"],
+            text=True,
+            stderr=subprocess.DEVNULL
+        ).splitlines()
+
+        for p in players:
+            if p.startswith("mpv.instance-"):
+                return True
+        
+        return False
+
+    except Exception:
+        return False
 
 def get_playing(player: str = None):
 
@@ -544,55 +560,27 @@ class CoverWorker(QThread):
 
     def __init__(self, artist, album, title):
         super().__init__()
-        self.artist = artist.strip() if artist else ""
-        self.album = album.strip() if album else ""
-        self.title = title.strip() if title else ""
+        self.artist = artist
+        self.album = album
+        self.title = title
 
     def run(self):
         try:
-            musicbrainzngs.set_timeout(5)
-            if self.isInterruptionRequested():
-                return
-
-            # Costruiamo la query
-            search_query = f"{self.artist} {self.album or self.title}".strip()
-            print(f"\n[DEBUG COVER] 🔍 Avvio ricerca per: '{search_query}'")
-            print(f"[DEBUG COVER] Dettagli -> Artista: '{self.artist}', Album: '{self.album}', Titolo: '{self.title}'")
-
-            # Evitiamo di cercare se i metadati sono palesemente vuoti o tracce generiche di un CD
-            if not search_query or search_query.lower() in ["audio cd", "track 01", ""]:
-                print("[DEBUG COVER] ⚠️ Metadati generici o vuoti (probabile CD senza CD-Text). Salto la ricerca.")
-                self.finished.emit(None)
-                return
-
-            result = musicbrainzngs.search_releases(query=search_query, limit=1)
-            
-            if self.isInterruptionRequested():
-                return
+            search_query = self.album if self.album and len(self.album) > 2 else self.title
+            result = musicbrainzngs.search_releases(artist=self.artist, release=search_query, limit=1)
             
             if result['release-list']:
                 release_id = result['release-list'][0]['id']
-                url = f"https://coverartarchive.org/release/{release_id}/front"
-                print(f"[DEBUG COVER] 🔗 Release trovata! Scarico da: {url}")
-                
+                url = f"https://coverartarchive.org/release/{release_id}/front-250"
                 response = requests.get(url, timeout=5)
                 
-                if self.isInterruptionRequested():
-                    return
-                
                 if response.status_code == 200:
-                    print("[DEBUG COVER] ✅ Copertina scaricata con successo!")
                     self.finished.emit(response.content) 
                     return
-                else:
-                    print(f"[DEBUG COVER] ❌ Errore CoverArtArchive: HTTP {response.status_code}")
-            else:
-                print("[DEBUG COVER] ❌ Nessun album trovato su MusicBrainz per questa query.")
             
             self.finished.emit(None)
-
         except Exception as e:
-            print(f"[DEBUG COVER] 💥 Errore critico nel worker: {e}")
+            print(f"Cover error: {e}")
             self.finished.emit(None)
 
 class VoiceWorker(QThread):
@@ -1374,7 +1362,10 @@ music_container, music_artist, music_title, music_title_label, music_album, musi
 music_next_song_button, music_previus_song_button, music_volume_up_button, music_volume_down_button, music_layout, music_cover_label = None, None, None, None, None, None
 def next_song_command(_checked=False):
     base = ["playerctl"]
-    if active_player_name:
+
+    if is_fake_mpv_running():
+        base += ["-p", "vlc"]
+    elif active_player_name:
         base += ["-p", active_player_name]
     elif is_mpv_running():
         base += ["-p", "mpv"]
@@ -1382,7 +1373,10 @@ def next_song_command(_checked=False):
 
 def previous_song_command(_checked=False):
     base = ["playerctl"]
-    if active_player_name:
+
+    if is_fake_mpv_running():
+        base += ["-p", "vlc"]
+    elif active_player_name:
         base += ["-p", active_player_name]
     elif is_mpv_running():
         base += ["-p", "mpv"]
@@ -1392,7 +1386,9 @@ def play_song_command(_checked=False):
 
     base = ["playerctl"]
 
-    if active_player_name:
+    if is_fake_mpv_running():
+        base += ["-p", "vlc"]
+    elif active_player_name:
         base += ["-p", active_player_name]
     elif is_mpv_running():
         base += ["-p", "mpv"]
