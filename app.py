@@ -1314,7 +1314,6 @@ def play_song_command(_checked=False):
     if active_player_name:
         base += ["-p", active_player_name]
     else:
-        # fallback: comportamento vecchio
         if is_mpv_running():
             base += ["-p", "mpv"]
 
