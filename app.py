@@ -42,6 +42,7 @@ musicbrainzngs.set_useragent("OpenHUB", "0.1", "https://github.com/Samuobe/OpenH
 #global gabbage
 active_player_name = None
 last_title = ""
+current_image_index = 0
 
 #Threads
 active_threads = []
@@ -116,6 +117,7 @@ from PyQt6.QtGui import QAction
 from other_windows.bluetooth_manager import open_bluetooth_window
 import Lattuga.tools as my_tools
 import glob
+import time
 
 style_widget = """
     QLabel {
@@ -357,7 +359,7 @@ class ActivityFilter(QObject):
 
 
 import os, glob, subprocess
-from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QStackedLayout, QGraphicsOpacityEffect
+from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QStackedLayout, QGraphicsOpacityEffect, QSizePolicy
 from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QPixmap
 
@@ -523,7 +525,7 @@ class ScreenSaver(QWidget):
         artist = artist or "Unknown artist"
         album_part = f" ({album})" if album else ""
         #self.music_label.setText(f"{status} • {artist} - {title}{album_part}  [{player}]")
-        self.music_label.setText(f"{status} • {artist} - {title}{album_part}")
+        self.music_label.setText(f"{lpak.get(status.capitalize(), language)} • {artist} - {title}{album_part}")
 
 
 #End screen saver
@@ -815,7 +817,11 @@ def update_music():
         if title != last_title:
             last_title = title
             music_artist.setText(f"{lpak.get('Artist', language)}: {artist}")
-            music_title.setText(title if "stream.view?" not in title else "Loading...")
+            music_title.setText(
+                f"{lpak.get('Title', language)}: {title}"
+                if "stream.view?" not in title
+                else f"{lpak.get('Loading', language)}..."
+            )
             music_album.setText(f"{lpak.get('Album', language)}: {album}")
 
         current_album_artist = f"{artist}|||{album}"
@@ -916,6 +922,44 @@ def load_static_data():
 def first_load():
     load_static_data()
     load_calendar()
+
+#Other update
+def update_imagesFrame():
+    global current_image_index
+
+    images = glob.glob("custom/images/immich/*")
+
+    if not images:
+        image_label.setText("No images")
+        return
+
+    image = images[current_image_index]
+
+    pixmap = QPixmap(image)
+
+    # DIMENSIONE DINAMICA
+    target_size = image_label.size()
+
+    scaled = pixmap.scaled(
+        target_size,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation
+    )
+
+    target_size = image_label.size()
+
+    scaled = pixmap.scaled(
+        target_size,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation
+    )
+
+    image_label.setPixmap(scaled)
+
+    current_image_index += 1
+
+    if current_image_index >= len(images):
+        current_image_index = 0
 
 
 mixer = alsaaudio.Mixer()
@@ -1552,8 +1596,32 @@ def create_weather_widget():
 if setting_status(weather_widget_status):
     create_weather_widget()
 
+def create_images_widget():
+    global images_container, images_layout, image_label
 
+    images_container = QWidget()
+    images_container.setStyleSheet(style_widget)
 
+    images_layout = QGridLayout()
+
+    image_label = QLabel(f"{lpak.get("Loading", language)}...")
+    
+    image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    image_label.setMinimumSize(300, 200)
+
+    image_label.setSizePolicy(
+        QSizePolicy.Policy.Expanding,
+        QSizePolicy.Policy.Expanding
+    )
+
+    images_layout.addWidget(image_label)
+
+    images_container.setLayout(images_layout)
+
+images_widget_status = "Enable"
+if setting_status(images_widget_status):
+   create_images_widget()
 
 #Make Layout
 def control_coordinate():   
@@ -1578,6 +1646,9 @@ if setting_status(calendar_widget_status):
     control_coordinate()
 if setting_status(weather_widget_status):
     data_widget.addWidget(weather_container, line, column)
+    control_coordinate()
+if setting_status(images_widget_status):
+    data_widget.addWidget(images_container, line, column)
     control_coordinate()
 
 
@@ -1648,9 +1719,12 @@ def load_external_widgets(griglia_layout, starting_line=1, starting_column=1):
             traceback.print_exc()
 
     print("8. Widget loaded!")
+
 load_external_widgets(data_widget, starting_line=line, starting_column=column)
 
 
+data_widget.setColumnStretch(0, 1)
+data_widget.setColumnStretch(1, 1)
 
 
 main_layout.addLayout(data_widget)
@@ -1662,6 +1736,11 @@ rapid_update_timer.start(1500)
 long_update_timer = QTimer()
 long_update_timer.timeout.connect(long_update_widget)
 long_update_timer.start(300000)
+
+#Photos timer
+images_timer = QTimer()
+images_timer.timeout.connect(update_imagesFrame)
+images_timer.start(5000)
 
 first_load()
 wait_keyword()
