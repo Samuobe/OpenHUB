@@ -778,7 +778,6 @@ def update_music():
     global music_artist, music_title, music_album, music_play_button, music_cover_label
 
     def set_cover_or_emoji(result=None, loading=False):
-        """Gestisce lo stato della cover: Immagine, Loading o Emoji di default."""
         music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if result:
             pixmap = QPixmap()
@@ -817,11 +816,11 @@ def update_music():
         if title != last_title:
             last_title = title
             music_artist.setText(f"{lpak.get('Artist', language)}: {artist}")
-            music_title.setText(
-                f"{lpak.get('Title', language)}: {title}"
-                if "stream.view?" not in title
-                else f"{lpak.get('Loading', language)}..."
-            )
+            if not "stream.view?" in title:
+                music_title.setText(f"{lpak.get('Title', language)}: {title}")
+            else:
+                music_title.setText(f"{lpak.get('Loading', language)}...")
+
             music_album.setText(f"{lpak.get('Album', language)}: {album}")
 
         current_album_artist = f"{artist}|||{album}"
