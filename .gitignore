@@ -18,3 +18,4 @@ instalation_type.info
 *.data
 config.conf
 *TEST*
+custom/images/immich/*

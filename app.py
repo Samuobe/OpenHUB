@@ -98,26 +98,34 @@ app.processEvents()
 
 
 #LIBRERIE
-from PyQt6.QtWidgets import QMainWindow, QHBoxLayout, QPushButton, QVBoxLayout, QWidget, QLabel, QDialog, QGridLayout
-import datetime
-from PyQt6.QtCore import QTime, Qt, QTimer, QObject, QEvent
-from PyQt6.QtWidgets import QLabel, QPushButton, QScrollArea, QFrame, QMenu, QSlider
+import os
 import re
-import requests
-from Lattuga.lattuga import voice_input, Lattuga, manual_input
-from Lattuga.tools import get_events, get_weather
-from other_windows.app_store import open_store_page
-import subprocess
-from functions.mpv_status import is_mpv_running
-import alsaaudio
-import importlib
 import json
-from other_windows.settings import open_settings_page
-from PyQt6.QtGui import QAction
-from other_windows.bluetooth_manager import open_bluetooth_window
-import Lattuga.tools as my_tools
 import glob
 import time
+import datetime
+import subprocess
+import importlib
+import requests
+import alsaaudio
+from PyQt6.QtCore import (
+    QTime, Qt, QTimer, QObject, QEvent,
+    QPropertyAnimation, QEasingCurve
+)
+from PyQt6.QtGui import QAction, QPixmap
+from PyQt6.QtWidgets import (
+    QMainWindow, QHBoxLayout, QVBoxLayout, QGridLayout,
+    QWidget, QLabel, QPushButton, QDialog, QScrollArea,
+    QFrame, QMenu, QSlider, QStackedLayout,
+    QGraphicsOpacityEffect, QSizePolicy
+)
+from Lattuga.lattuga import voice_input, Lattuga, manual_input
+import Lattuga.tools as my_tools
+from Lattuga.tools import get_events, get_weather
+from functions.mpv_status import is_mpv_running
+from other_windows.app_store import open_store_page
+from other_windows.settings import open_settings_page
+from other_windows.bluetooth_manager import open_bluetooth_window
 
 style_widget = """
     QLabel {
@@ -357,12 +365,6 @@ class ActivityFilter(QObject):
 
         return False
 
-
-import os, glob, subprocess
-from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QStackedLayout, QGraphicsOpacityEffect, QSizePolicy
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QPixmap
-
 class ScreenSaver(QWidget):
     IMAGE_HEIGHT_RATIO = 0.78 #% space image in monitor
     SLIDE_MS = 5000 #photo timer
@@ -371,6 +373,11 @@ class ScreenSaver(QWidget):
 
     def __init__(self, images_dir="custom/images/screensaver"):
         super().__init__()
+
+        try_images = glob.glob("custom/images/immich/*")
+        if try_images:
+            images_dir = "custom/images/immich"
+
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
@@ -509,17 +516,17 @@ class ScreenSaver(QWidget):
     def update_now_playing(self):
         raw = get_playing()
         if raw == None:
-            self.music_label.setText("Nothing playing")
+            self.music_label.setText(lpak.get("Nothing playing", language))
             return
 
         parts = raw.split("|||")
         if len(parts) < 5:
-            self.music_label.setText("Nothing playing")
+            self.music_label.setText(lpak.get("Nothing playing", language))
             return
 
         status, artist, title, album, player = [p.strip() for p in parts]
         if not title:
-            self.music_label.setText("Nothing playing")
+            self.music_label.setText(lpak.get("Nothing playing", language))
             return
 
         artist = artist or "Unknown artist"
@@ -852,6 +859,12 @@ def update_music():
             music_play_button.setText("▶️")
       
     except Exception:
+        music_title.setText(lpak.get("Nothing is playing", language))
+        music_artist.setText("")
+        music_album.setText("")
+        last_title = ""
+        last_album_artist = ""
+        set_cover_or_emoji(None)
         pass
 
 def update_gui():
@@ -925,33 +938,61 @@ def first_load():
 #Other update
 def update_imagesFrame():
     global current_image_index
+
+    import glob, random
+    from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
+    from PyQt6.QtGui import QPixmap
+
     images = glob.glob("custom/images/immich/*")
+
     if not images:
         image_label.setWordWrap(True)
-        image_label.setText(f"{lpak.get("No images, please log in with Immich and create an album called OpenHUB", language)}. {lpak.get("See the wiki on GitHub for more informations", language)}.")
+        image_label.setText(
+            f"{lpak.get('No images, please log in with Immich and create an album called OpenHUB', language)}. "
+            f"{lpak.get('See the wiki on GitHub for more informations', language)}."
+        )
         return
-    try:
-        image = images[current_image_index]
-    except:
-        current_image_index=0
-        return
-    pixmap = QPixmap(image)
-    target_size = image_label.size()
-    scaled = pixmap.scaled(
-        target_size,
-        Qt.AspectRatioMode.KeepAspectRatio,
-        Qt.TransformationMode.SmoothTransformation
-    )
-    target_size = image_label.size()
-    scaled = pixmap.scaled(
-        target_size,
-        Qt.AspectRatioMode.KeepAspectRatio,
-        Qt.TransformationMode.SmoothTransformation
-    )
-    image_label.setPixmap(scaled)
-    current_image_index += 1
+
     if current_image_index >= len(images):
         current_image_index = 0
+
+    path = images[current_image_index]
+    current_image_index += 1
+
+    pixmap = QPixmap(path)
+    if pixmap.isNull():
+        return
+
+    scaled = pixmap.scaled(
+        image_label.size(),
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation
+    )
+
+    opacity = image_label._opacity
+
+    fade_out = QPropertyAnimation(opacity, b"opacity")
+    fade_out.setDuration(200)
+    fade_out.setStartValue(1.0)
+    fade_out.setEndValue(0.0)
+
+    def swap_image():
+        image_label.setPixmap(scaled)
+
+        fade_in = QPropertyAnimation(opacity, b"opacity")
+        fade_in.setDuration(400)
+        fade_in.setStartValue(0.0)
+        fade_in.setEndValue(1.0)
+        fade_in.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        fade_in.start()
+        image_label._anim_in = fade_in
+
+    fade_out.finished.connect(swap_image)
+    fade_out.start()
+
+    image_label._anim_out = fade_out
+
 
 mixer = alsaaudio.Mixer()
 
@@ -1606,6 +1647,10 @@ def create_images_widget():
         QSizePolicy.Policy.Expanding
     )
 
+    image_label._opacity = QGraphicsOpacityEffect()
+    image_label.setGraphicsEffect(image_label._opacity)
+    image_label._opacity.setOpacity(1.0)
+
     images_layout.addWidget(image_label)
 
     images_container.setLayout(images_layout)
@@ -1732,7 +1777,7 @@ long_update_timer.start(300000)
 #Photos timer
 images_timer = QTimer()
 images_timer.timeout.connect(update_imagesFrame)
-images_timer.start(5000)
+images_timer.start(7000)
 
 first_load()
 wait_keyword()
