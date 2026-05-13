@@ -3,29 +3,38 @@ import requests
 
 class ImmichClient:
     def __init__(self, url, email, password):
-        self.url = url
+        self.url = url.rstrip("/")
         self.email = email
         self.password = password
 
         self.session = requests.Session()
-        self.token = None
 
     def login(self):
         r = self.session.post(
             f"{self.url}/api/auth/login",
-            json={"email": self.email, "password": self.password}
+            json={
+                "email": self.email,
+                "password": self.password
+            }
         )
+
+        print("STATUS:", r.status_code)
+        #RESPONSE = r.text
+        #print("RESPONSE:", r.text)
+
         r.raise_for_status()
 
         data = r.json()
-        self.token = data.get("accessToken") or data.get("token")
 
-        if not self.token:
-            raise RuntimeError(f"Token non trovato: {r.text}")
+        token = data["accessToken"]
 
         self.session.headers.update({
-            "Authorization": f"Bearer {self.token}"
+            "Authorization": f"Bearer {token}"
         })
+
+        print("Login OK")
+
+
 
     def get_album_list(self):
         r = self.session.get(f"{self.url}/api/albums")
@@ -76,7 +85,7 @@ class ImmichClient:
                 if chunk:
                     f.write(chunk)
 
-        print("Saved:", out_path)
+        #print("Saved:", out_path)
 
     def download_album(self, album_name: str, out_dir="download_album", videos=False):
         album_id = self.find_album_id_by_name(album_name)
@@ -93,7 +102,30 @@ class ImmichClient:
         for a in assets:
             self.download_asset(a, out_dir)
 
-""" COME USARLO
+    def get_album_filenames(self, album_name: str, videos=False):
+        album_id = self.find_album_id_by_name(album_name)
+        assets = self.list_album_assets(album_id)
+
+        if not videos:
+            assets = [
+                a for a in assets
+                if (a.get("type") or a.get("assetType") or "").upper() != "VIDEO"
+            ]
+
+        filenames = []
+
+        for asset in assets:
+            filename = (
+                asset.get("originalFileName")
+                or asset.get("originalPath", "").split("/")[-1]
+                or f"{asset['id']}.bin"
+            )
+
+            filenames.append(filename)
+
+        return filenames
+
+""" how to use
 from immich_client import ImmichClient
 
 immich = ImmichClient(

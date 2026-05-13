@@ -32,6 +32,8 @@ Microphone sensitivity|Microphone sensitivity
 Volume|Volume
 Paused|Paused
 Playing|Playing
+Audio volume|Audio volume
+See the wiki on GitHub for more informations|See the wiki on GitHub for more informations
 
 #Buttons
 Stop and return to the home page|Stop and return to the home page
@@ -138,3 +140,6 @@ Violent rain showers|Violent rain showers
 Thunderstorm|Thunderstorm
 Temperature|Temperature
 Feels-like temperature|Feels-like temperature
+
+#Errors and allerts
+No images, please log in with Immich and create an album called OpenHUB|No images, please log in with Immich and create an album called OpenHUB

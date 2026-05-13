@@ -926,41 +926,33 @@ def first_load():
 #Other update
 def update_imagesFrame():
     global current_image_index
-
     images = glob.glob("custom/images/immich/*")
-
     if not images:
-        image_label.setText("No images")
+        image_label.setWordWrap(True)
+        image_label.setText(f"{lpak.get("No images, please log in with Immich and create an album called OpenHUB", language)}. {lpak.get("See the wiki on GitHub for more informations", language)}.")
         return
-
-    image = images[current_image_index]
-
+    try:
+        image = images[current_image_index]
+    except:
+        current_image_index=0
+        return
     pixmap = QPixmap(image)
-
-    # DIMENSIONE DINAMICA
     target_size = image_label.size()
-
     scaled = pixmap.scaled(
         target_size,
         Qt.AspectRatioMode.KeepAspectRatio,
         Qt.TransformationMode.SmoothTransformation
     )
-
     target_size = image_label.size()
-
     scaled = pixmap.scaled(
         target_size,
         Qt.AspectRatioMode.KeepAspectRatio,
         Qt.TransformationMode.SmoothTransformation
     )
-
     image_label.setPixmap(scaled)
-
     current_image_index += 1
-
     if current_image_index >= len(images):
         current_image_index = 0
-
 
 mixer = alsaaudio.Mixer()
 
@@ -1728,6 +1720,7 @@ data_widget.setColumnStretch(1, 1)
 
 
 main_layout.addLayout(data_widget)
+
 # TIMER update
 rapid_update_timer = QTimer()
 rapid_update_timer.timeout.connect(update_gui)
