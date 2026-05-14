@@ -83,7 +83,8 @@ def check_configuration():
         "Widgets": {
             "Music": "Enable",
             "Calendar": "Enable",
-            "Weather": "Enable"
+            "Weather": "Enable",
+            "ImagesFrame": "Enable"
         }
     }
 

@@ -28,11 +28,9 @@ def update_special_files(INSTALL_DIR=None):
         INSTALL_DIR = os.getcwd()
 
     updated = []
-    
-    # Costruiamo il path per l'eseguibile Python
+
     PYTHON_PATH = os.path.join(INSTALL_DIR, "venv", "bin", "python")
 
-    # 1. ~/.local/bin/open-hub
     src_bin = os.path.join(INSTALL_DIR, "system_files", "open-hub")
     dest_bin = os.path.expanduser("~/.local/bin/open-hub")
     
@@ -56,7 +54,6 @@ def update_special_files(INSTALL_DIR=None):
             os.chmod(dest_bin, 0o755)
             updated.append(dest_bin)
 
-    # 2. ~/.config/systemd/user/openhub.service
     src_sysd = os.path.join(INSTALL_DIR, "system_files", "openhub.service")
     dest_sysd = os.path.expanduser("~/.config/systemd/user/openhub.service")
     
@@ -200,7 +197,7 @@ def open_settings_page():
         return os.path.isfile("test.txt")
     data_path = ""
     global settings_window, config, setting_status_label
-    global language, music_widget_status, calendar_widget_status, weather_widget_status
+    global language, music_widget_status, calendar_widget_status, weather_widget_status, images_widget_status
 
     avaible_languages_temp = glob.glob(f"{data_path}lpak/*.lpak")
     avaible_languages = []
@@ -226,6 +223,7 @@ def open_settings_page():
     music_widget_status = config.get("Widgets", "Music")
     calendar_widget_status = config.get("Widgets", "Calendar")
     weather_widget_status = config.get("Widgets", "Weather")
+    images_widget_status = config.get("Widgets", "ImagesFrame")
 
     with open("info/instalation_type.info", "r") as f:
         instalation_type = f.readlines()[0].strip()
@@ -341,7 +339,7 @@ def open_settings_page():
 
     #Widgets
     label_widget_title = QLabel(lpak.get("Default widgets", language))
-    def change_music_widget_status():
+    def change_music_widget_status():   #music
         global music_widget_status, config
         set_edited_status()
         if setting_status(music_widget_status):
@@ -362,7 +360,7 @@ def open_settings_page():
     else:
         button_setting_music.setText(lpak.get("Enable", language))  
     
-    def change_calendar_widget_status():
+    def change_calendar_widget_status():   #calendar
         global calendar_widget_status, config
         set_edited_status()
         if setting_status(calendar_widget_status):
@@ -384,7 +382,7 @@ def open_settings_page():
     else:
         button_setting_calendar.setText(lpak.get("Enable", language))
 
-    def change_weather_widget_status():
+    def change_weather_widget_status():    #Wheather
         global weather_widget_status, config
         set_edited_status()
         if setting_status(weather_widget_status):
@@ -405,6 +403,31 @@ def open_settings_page():
         button_setting_weather.setText(lpak.get("Disable", language))
     else:
         button_setting_weather.setText(lpak.get("Enable", language))  
+
+
+    def change_images_widget_status(): #images
+        global images_widget_status, config
+        set_edited_status()
+        if setting_status(images_widget_status):
+            val = "Disable"
+            button_setting_images.setText(lpak.get("Enable", language))
+        else:
+            val = "Enable"
+            button_setting_images.setText(lpak.get("Disable", language))
+        images_widget_status = val
+        config.set("Widgets", "ImagesFrame", val)
+        write_settings()
+
+    label_images_widget = QLabel(lpak.get("Images frame", language))
+    button_setting_images = QPushButton()
+    button_setting_images.clicked.connect(change_images_widget_status)
+
+    if setting_status(images_widget_status):
+        button_setting_images.setText(lpak.get("Disable", language))
+    else:
+        button_setting_images.setText(lpak.get("Enable", language))
+
+
 
     #label
     setting_status_label = QLabel()
@@ -444,9 +467,11 @@ def open_settings_page():
     data_widget.addWidget(button_setting_calendar, 6, 1, 1, 1)
     data_widget.addWidget(label_weather_widget, 7, 0, 1, 1)
     data_widget.addWidget(button_setting_weather, 7, 1, 1, 1)
+    data_widget.addWidget(label_images_widget, 8, 0, 1, 1)
+    data_widget.addWidget(button_setting_images, 8, 1, 1, 1)
     
-    data_widget.addWidget(create_line(), 8, 0, 1, 2)
-    data_widget.addWidget(button_change_language, 9, 0, 1, 2)
+    data_widget.addWidget(create_line(), 9, 0, 1, 2)
+    data_widget.addWidget(button_change_language, 10, 0, 1, 2)
 
 
     label_title_custom_things=QLabel(lpak.get("Custom components", language))
@@ -506,7 +531,7 @@ def open_settings_page():
         data_widget.addWidget(plugin_button, r, 3, 1, 1)
         r = r+1
 
-    bottom_row = max(10, r)
+    bottom_row = max(11, r)
 
     data_widget.addWidget(create_line(), bottom_row, 0, 1, 4)
     data_widget.addWidget(button_edit_credential, bottom_row + 1, 0, 1, 4)

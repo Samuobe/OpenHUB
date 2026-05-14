@@ -24,6 +24,7 @@ screensaver_timeout = config.get("User data","Screensaver_timeout")
 music_widget_status = config.get("Widgets", "Music")
 calendar_widget_status = config.get("Widgets", "Calendar")
 weather_widget_status = config.get("Widgets", "Weather")
+images_widget_status = config.get("Widgets", "ImagesFrame")
 
 #Load credential
 config_credential =configparser.ConfigParser()
@@ -109,10 +110,12 @@ import importlib
 import requests
 import alsaaudio
 from PyQt6.QtCore import (
-    QTime, Qt, QTimer, QObject, QEvent,
-    QPropertyAnimation, QEasingCurve
+    QTime, QTimer, QEvent,
+    QPropertyAnimation, QEasingCurve, QRectF
 )
-from PyQt6.QtGui import QAction, QPixmap
+from PyQt6.QtGui import (
+    QAction, QPainterPath
+)
 from PyQt6.QtWidgets import (
     QMainWindow, QHBoxLayout, QVBoxLayout, QGridLayout,
     QWidget, QLabel, QPushButton, QDialog, QScrollArea,
@@ -136,6 +139,13 @@ style_widget = """
         font-size: 16px;
         font-size: 30;
     }
+"""
+
+style_container = """
+QWidget {
+    background-color: #e6ffe6;
+    border-radius: 15px;
+}
 """
 
 if os.path.isfile(f"{data_path}conversation.json"):
@@ -319,6 +329,25 @@ def clear_layout(layout, keep=1):
         if widget is not None:
             widget.deleteLater()
 
+def rounded_pixmap(pixmap, radius: int = int(min(pixmap.width(), pixmap.height()) * 0.08)):
+    if pixmap.isNull():
+        return pixmap
+
+    result = QPixmap(pixmap.size())
+    result.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(result)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    path = QPainterPath()
+    path.addRoundedRect(QRectF(pixmap.rect()), radius, radius)
+
+    painter.setClipPath(path)
+    painter.drawPixmap(0, 0, pixmap)
+    painter.end()
+
+    return result
+
 ##Screen saver
 class IdleDetector(QObject):
     def __init__(self, timeout_ms, on_idle, on_resume):
@@ -475,7 +504,9 @@ class ScreenSaver(QWidget):
             label.setText("🌌")
             return
         label.setText("")
-        label.setPixmap(self._scaled(pix))
+        scaled = self._scaled(pix)
+        rounded = rounded_pixmap(scaled, 30)
+        label.setPixmap(rounded)
 
     def next_frame(self):
         pix = self._get_current_pixmap_or_none()
@@ -601,7 +632,6 @@ class VoiceWorker(QThread):
         except:
             screensaver.hide()
             status_label.setText("Error, microphone not found!!")
-
 
 class AIWorker(QThread):
     finished = pyqtSignal(str)
@@ -938,11 +968,6 @@ def first_load():
 #Other update
 def update_imagesFrame():
     global current_image_index
-
-    import glob, random
-    from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
-    from PyQt6.QtGui import QPixmap
-
     images = glob.glob("custom/images/immich/*")
 
     if not images:
@@ -968,6 +993,8 @@ def update_imagesFrame():
         Qt.AspectRatioMode.KeepAspectRatio,
         Qt.TransformationMode.SmoothTransformation
     )
+
+    scaled = rounded_pixmap(scaled, 20)
 
     opacity = image_label._opacity
 
@@ -1006,7 +1033,6 @@ def verify_folders():
     for folder in folders:
         if not os.path.exists(folder):
             os.makedirs(folder)
-
 
 def config_initial_volume():
     global mixer
@@ -1049,7 +1075,7 @@ central_widget = QWidget()
 root.setCentralWidget(central_widget)
 main_layout = QVBoxLayout(central_widget)
 
-#Screem saver
+#Screen saver
 def show_screensaver():
     if test_mode_enable():
         screensaver.showMaximized()
@@ -1448,6 +1474,7 @@ def play_song_command(_checked=False):
     target = get_target_player()
     if target:
         subprocess.Popen(["playerctl", "-p", target, "play-pause"])
+
 def turn_up_volume():
     try:
         original_volume = mixer.getvolume()[0]
@@ -1457,6 +1484,7 @@ def turn_up_volume():
             f.write(str(volume).strip())
     except:
         pass
+
 def turn_down_volume():
     try:
         original_volume = mixer.getvolume()[0]
@@ -1632,14 +1660,14 @@ def create_images_widget():
     global images_container, images_layout, image_label
 
     images_container = QWidget()
-    images_container.setStyleSheet(style_widget)
+    images_container.setStyleSheet(style_container)
 
     images_layout = QGridLayout()
 
-    image_label = QLabel(f"{lpak.get("Loading", language)}...")
-    
-    image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    image_label = QLabel(f"{lpak.get('Loading', language)}...")
+    image_label.setStyleSheet(style_widget)
 
+    image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     image_label.setMinimumSize(300, 200)
 
     image_label.setSizePolicy(
@@ -1648,14 +1676,13 @@ def create_images_widget():
     )
 
     image_label._opacity = QGraphicsOpacityEffect()
-    image_label.setGraphicsEffect(image_label._opacity)
     image_label._opacity.setOpacity(1.0)
+    image_label.setGraphicsEffect(image_label._opacity)
 
     images_layout.addWidget(image_label)
-
     images_container.setLayout(images_layout)
 
-images_widget_status = "Enable"
+
 if setting_status(images_widget_status):
    create_images_widget()
 
@@ -1775,9 +1802,10 @@ long_update_timer.timeout.connect(long_update_widget)
 long_update_timer.start(300000)
 
 #Photos timer
-images_timer = QTimer()
-images_timer.timeout.connect(update_imagesFrame)
-images_timer.start(7000)
+if setting_status(images_widget_status):
+    images_timer = QTimer()
+    images_timer.timeout.connect(update_imagesFrame)
+    images_timer.start(7000)
 
 first_load()
 wait_keyword()
