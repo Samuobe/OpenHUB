@@ -30,7 +30,8 @@ https://github.com/user-attachments/assets/98432f7c-97f6-4c82-a0e1-eac1a50140b5
   xcb-util-cursor noto-fonts-emoji \
   blueman \
   ollama \
-  procps-ng systemd
+  procps-ng systemd \
+  libdiscid
   ```
 - **Debian/Ubuntu**:
 ```sudo apt update
@@ -42,7 +43,8 @@ sudo apt install -y \
   vlc mpv \
   libxcb-cursor0 fonts-noto-color-emoji \
   blueman \
-  udev procps
+  udev procps \
+  libdiscid0
 ```
 
 - **Fedora**:
@@ -55,7 +57,8 @@ sudo dnf install -y \
   vlc mpv \
   xcb-util-cursor google-noto-emoji-color-fonts \
   blueman \
-  procps-ng
+  procps-ng \
+  libdiscid
 ```
 
 **NOTE**: At present, the programme has only been tested on Arch! It may or may not work on other distributions; if it doesn’t work, please share any issues you encounter and/or any solutions you find.

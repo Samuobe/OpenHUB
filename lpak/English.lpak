@@ -30,6 +30,11 @@ Attencion|Attenction
 Weather|Weather
 Microphone sensitivity|Microphone sensitivity
 Volume|Volume
+Paused|Paused
+Playing|Playing
+Audio volume|Audio volume
+See the wiki on GitHub for more informations|See the wiki on GitHub for more informations
+Nothing playing|Nothing playing
 
 #Buttons
 Stop and return to the home page|Stop and return to the home page
@@ -89,6 +94,7 @@ Update|Update
 Main|Main
 Stable|Stable
 Dev|Dev
+Images frame|Images frame
 
 #Bluetooth
 Bluetooth settings|Bluetooth settings
@@ -136,3 +142,6 @@ Violent rain showers|Violent rain showers
 Thunderstorm|Thunderstorm
 Temperature|Temperature
 Feels-like temperature|Feels-like temperature
+
+#Errors and allerts
+No images, please log in with Immich and create an album called OpenHUB|No images, please log in with Immich and create an album called OpenHUB

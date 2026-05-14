@@ -13,6 +13,41 @@ def test_mode_enable():
 
 data_path = ""
 
+def ensure_config_defaults(CONFIG_FILE, DEFAULT_CONFIG):
+    config = configparser.ConfigParser()
+    config.optionxform = str
+
+    if os.path.isfile(CONFIG_FILE):
+        config.read(CONFIG_FILE)
+
+    changed = False
+
+    for section, values in DEFAULT_CONFIG.items():
+        if not config.has_section(section):
+            config.add_section(section)
+            changed = True
+
+        for key, default_val in values.items():
+            if not config.has_option(section, key):
+                config.set(section, key, str(default_val))
+                changed = True
+
+    if changed:
+        with open(CONFIG_FILE, "w") as f:
+            config.write(f)
+
+    return config, changed
+
+def config_has_asterisk(config, DEFAULT_CONFIG):
+    for section, values in DEFAULT_CONFIG.items():
+        if not config.has_section(section):
+            continue
+        for key in values:
+            if config.has_option(section, key):
+                if config.get(section, key).strip() == "*":
+                    return True
+    return False
+
 def check_configuration():
     base_file = "credential_base.env"
     user_file = f"{data_path}credential.env"
@@ -39,34 +74,28 @@ def check_configuration():
             if val == "" or val == "*":
                 return False
 
-    # config control
-    if not os.path.exists(CONFIG_FILE):
-        return False 
-
     DEFAULT_CONFIG = {
         "User data": {
             "Language": "English",
-            "AI_model": "*"
+            "AI_model": "ministral-3:14b-cloud",
+            "Screensaver_timeout": "50000"
         },
         "Widgets": {
             "Music": "Enable",
             "Calendar": "Enable",
-            "Weather": "Enable"
+            "Weather": "Enable",
+            "ImagesFrame": "Enable"
         }
     }
-    
-    config = configparser.ConfigParser()
-    config.optionxform = str
-    config.read(CONFIG_FILE)
-    
+
+    config, _ = ensure_config_defaults(CONFIG_FILE, DEFAULT_CONFIG)
+
+    if config_has_asterisk(config, DEFAULT_CONFIG):
+        return False
+
     for section, values in DEFAULT_CONFIG.items():
-        if not config.has_section(section):
-            return False
         for key in values:
-            if not config.has_option(section, key):
-                return False
-            val = config.get(section, key).strip()
-            if val == "" or val == "*":
+            if config.get(section, key, fallback="").strip() == "":
                 return False
 
     return True
@@ -99,8 +128,7 @@ if command == "start":
                 sys.exit(0)
 
         processi = []
-        
-        # start mpros for blueooth
+
         try:
             p_mpris = subprocess.Popen(["mpris-proxy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             processi.append(p_mpris)
@@ -108,8 +136,10 @@ if command == "start":
         except FileNotFoundError:
             print("Warning: mpris-proxy not found. Bluetooth media info will not work.")
 
-        # start python
-        files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", "back_process/music_scrobbling.py"]
+        files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", 
+            "back_process/music_scrobbling.py", "back_process/search_cd_data_daemon.py", 
+            "back_process/immich_photos.py", "back_process/MJPG_Camera.py"
+        ]
 
         for file in files:
             file_path = os.path.join(script_dir, file)

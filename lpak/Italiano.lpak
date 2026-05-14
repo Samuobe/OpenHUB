@@ -14,7 +14,7 @@ Loading calendar|Caricamento calendario
 Calendar|Calendario
 All day|Tutto il giorno
 Welcome|Benvenuto
-Initialization|Inizializzaione
+Initialization|Inizializzazione
 Say "Hey Jarvis"|Di "Hey Jarvis"
 Terminated|Finito
 Completed|Completato
@@ -30,6 +30,11 @@ Attencion|Attenzione
 Weather|Meteo
 Microphone sensitivity|Sensibilità microfono
 Volume|Volume
+Paused|Pausa
+Playing|In riproduzione
+Audio volume|Volume audio
+See the wiki on GitHub for more informations|Vedi la wiki su GitHub per altre informazioni
+Nothing playing|Nulla in riproduzione
 
 #Buttons
 Stop and return to the home page|Ferma e torna alla home
@@ -42,6 +47,7 @@ System reboot|Riavvia il sistema
 System power off|Spegni il sistema
 Close OpenHUB|Esci da OpenHUB
 Restart OpenHUB|Riavvia OpenHUB
+Images frame|Foto a scorrimento
 
 
 
@@ -136,3 +142,6 @@ Violent rain showers|Rovesci di pioggia violenti
 Thunderstorm|Temporale
 Temperature|Temperatura
 Feels-like temperature|Temperatura percepita
+
+#Errors and allerts
+No images, please log in with Immich and create an album called OpenHUB|Nessuna immagine trovata, accedi a Immich e crea un album chiamato OpenHUB

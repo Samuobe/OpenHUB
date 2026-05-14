@@ -19,10 +19,12 @@ config.optionxform = str
 config.read(f"{data_path}config.conf")
 language = config.get("User data", "Language")
 language_code = get_language_code.get(language)
+screensaver_timeout = config.get("User data","Screensaver_timeout")
 
 music_widget_status = config.get("Widgets", "Music")
 calendar_widget_status = config.get("Widgets", "Calendar")
 weather_widget_status = config.get("Widgets", "Weather")
+images_widget_status = config.get("Widgets", "ImagesFrame")
 
 #Load credential
 config_credential =configparser.ConfigParser()
@@ -39,10 +41,13 @@ def setting_status(a):
 musicbrainzngs.set_useragent("OpenHUB", "0.1", "https://github.com/Samuobe/OpenHUB")
 
 #global gabbage
-
+active_player_name = None
 last_title = ""
-active_threads = []
+current_image_index = 0
 
+#Threads
+active_threads = []
+current_cover_thread = None
 
 app = QApplication(sys.argv)
 
@@ -94,24 +99,36 @@ app.processEvents()
 
 
 #LIBRERIE
-from PyQt6.QtWidgets import QMainWindow, QHBoxLayout, QPushButton, QVBoxLayout, QWidget, QLabel, QDialog, QGridLayout
-import datetime
-from PyQt6.QtCore import QTime, Qt, QTimer
-from PyQt6.QtWidgets import QLabel, QPushButton, QScrollArea, QFrame, QMenu, QSlider
+import os
 import re
-import requests
-from Lattuga.lattuga import voice_input, Lattuga, manual_input
-from Lattuga.tools import get_events, get_weather
-from other_windows.app_store import open_store_page
-import subprocess
-from functions.mpv_status import is_mpv_running
-import alsaaudio
-import importlib
 import json
-from other_windows.settings import open_settings_page
-from PyQt6.QtGui import QAction
-from other_windows.bluetooth_manager import open_bluetooth_window
+import glob
+import time
+import datetime
+import subprocess
+import importlib
+import requests
+import alsaaudio
+from PyQt6.QtCore import (
+    QTime, QTimer, QEvent,
+    QPropertyAnimation, QEasingCurve, QRectF
+)
+from PyQt6.QtGui import (
+    QAction, QPainterPath
+)
+from PyQt6.QtWidgets import (
+    QMainWindow, QHBoxLayout, QVBoxLayout, QGridLayout,
+    QWidget, QLabel, QPushButton, QDialog, QScrollArea,
+    QFrame, QMenu, QSlider, QStackedLayout,
+    QGraphicsOpacityEffect, QSizePolicy
+)
+from Lattuga.lattuga import voice_input, Lattuga, manual_input
 import Lattuga.tools as my_tools
+from Lattuga.tools import get_events, get_weather
+from functions.mpv_status import is_mpv_running
+from other_windows.app_store import open_store_page
+from other_windows.settings import open_settings_page
+from other_windows.bluetooth_manager import open_bluetooth_window
 
 style_widget = """
     QLabel {
@@ -124,13 +141,106 @@ style_widget = """
     }
 """
 
+style_container = """
+QWidget {
+    background-color: #e6ffe6;
+    border-radius: 15px;
+}
+"""
+
 if os.path.isfile(f"{data_path}conversation.json"):
     os.remove(f"{data_path}conversation.json")
 
+def is_fake_mpv_running():
+    try:
+        players = subprocess.check_output(
+            ["playerctl", "-l"],
+            text=True,
+            stderr=subprocess.DEVNULL
+        ).splitlines()
 
+        for p in players:
+            if p.startswith("mpv.instance-"):
+                return True
+        
+        return False
+
+    except Exception:
+        return False
+
+def get_playing(player: str = None):
+
+    def query(
+        p,
+        format_string="{{status}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}"
+    ):
+        try:
+            return subprocess.check_output(
+                ["playerctl", "metadata", "-p", p, "--format", format_string],
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=0.3
+            ).strip()
+        except:
+            return None
+
+    try:
+        players = subprocess.check_output(
+            ["playerctl", "-l"],
+            text=True,
+            stderr=subprocess.DEVNULL
+        ).splitlines()
+
+        if player:
+            return query(player)
+
+        fake_mpv = next(
+            (p for p in players if p.startswith("mpv.instance-")),
+            None
+        )
+
+        if fake_mpv:
+            meta_data = query(
+                fake_mpv,
+                "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}"
+            )
+
+            real_status = "paused"
+
+            try:
+                real_status = subprocess.check_output(
+                    ["playerctl", "-p", "vlc", "status"],
+                    stderr=subprocess.DEVNULL,
+                    text=True
+                ).strip().lower()
+            except:
+                pass
+
+            if meta_data:
+                return f"{real_status}|||{meta_data}"
+
+        t_list = [p for p in players if p not in ["vlc", "mpv"]]
+
+        if t_list:
+            res = query(t_list[0])
+            if res:
+                return res
+
+        for p in ["mpv", "vlc"]:
+            if p in players:
+                res = query(p)
+                if res:
+                    return res
+
+    except Exception as e:
+        print(e)
+
+    return None
 
 def show_big_advice(testo):
-    global current_popup
+    global current_popup, idle
+    idle.reset()
+    screensaver.hide()
     if current_popup:
         current_popup.close()
 
@@ -231,7 +341,7 @@ def show_big_advice(testo):
     popup.show()
         
     tts.say(testo_pulito)
-    wait_keyword()
+    QTimer.singleShot(0, wait_keyword)
 
 def clear_layout(layout, keep=1):
     while layout.count() > keep:
@@ -239,6 +349,245 @@ def clear_layout(layout, keep=1):
         widget = item.widget()
         if widget is not None:
             widget.deleteLater()
+
+def rounded_pixmap(pixmap, radius: int = int(min(pixmap.width(), pixmap.height()) * 0.08)):
+    if pixmap.isNull():
+        return pixmap
+
+    result = QPixmap(pixmap.size())
+    result.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(result)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    path = QPainterPath()
+    path.addRoundedRect(QRectF(pixmap.rect()), radius, radius)
+
+    painter.setClipPath(path)
+    painter.drawPixmap(0, 0, pixmap)
+    painter.end()
+
+    return result
+
+##Screen saver
+class IdleDetector(QObject):
+    def __init__(self, timeout_ms, on_idle, on_resume):
+        super().__init__()
+        self.timeout_ms = timeout_ms
+        self.on_idle = on_idle
+        self.on_resume = on_resume
+
+        self.timer = QTimer()
+        self.timer.setInterval(timeout_ms)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.trigger_idle)
+
+        self.active = True
+        self.timer.start()
+
+    def reset(self):
+        if not self.active:
+            self.on_resume()
+            self.active = True
+        self.timer.start()
+
+    def trigger_idle(self):
+        self.active = False
+        self.on_idle()
+
+class ActivityFilter(QObject):
+    def __init__(self, idle_detector):
+        super().__init__()
+        self.idle_detector = idle_detector
+
+    def eventFilter(self, obj, event):
+        if event.type() in [
+            QEvent.Type.MouseMove,
+            QEvent.Type.MouseButtonPress,
+            QEvent.Type.KeyPress,
+            QEvent.Type.Wheel
+        ]:
+            self.idle_detector.reset()
+
+            # se screensaver attivo → chiudi
+            if screensaver.isVisible():
+                screensaver.hide()
+
+        return False
+
+class ScreenSaver(QWidget):
+    IMAGE_HEIGHT_RATIO = 0.78 #% space image in monitor
+    SLIDE_MS = 5000 #photo timer
+    FADE_MS = 800 #fade time
+    MUSIC_POLL_MS = 2000 #update music timer
+
+    def __init__(self, images_dir="custom/images/screensaver"):
+        super().__init__()
+
+        try_images = glob.glob("custom/images/immich/*")
+        if try_images:
+            images_dir = "custom/images/immich"
+
+
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.Tool
+        )
+        self.setStyleSheet("background-color: black;")
+
+        self.image_container = QWidget(self)
+        self.stack = QStackedLayout(self.image_container)
+        self.stack.setContentsMargins(0, 0, 0, 0)
+
+        self.img_a = QLabel()
+        self.img_b = QLabel()
+        for lab in (self.img_a, self.img_b):
+            lab.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lab.setStyleSheet("background: transparent; color: white; font-size: 80px;")
+            lab.setText("🌌")
+
+        self.fx_a = QGraphicsOpacityEffect(self.img_a)
+        self.fx_b = QGraphicsOpacityEffect(self.img_b)
+        self.img_a.setGraphicsEffect(self.fx_a)
+        self.img_b.setGraphicsEffect(self.fx_b)
+        self.fx_a.setOpacity(1.0)
+        self.fx_b.setOpacity(0.0)
+
+        self.stack.addWidget(self.img_a)
+        self.stack.addWidget(self.img_b)
+
+        self.music_label = QLabel(self)
+        self.music_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.music_label.setStyleSheet("""
+            QLabel {
+                background-color: rgba(0, 0, 0, 160);
+                color: white;
+                padding: 10px 20px;
+                font-size: 18px;
+                border-top: 1px solid rgba(255,255,255,40);
+            }
+        """)
+        self.music_label.setText("")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.image_container, stretch=1)
+        layout.addWidget(self.music_label, stretch=0)
+
+        exts = ("*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp")
+        self.images = []
+        for ext in exts:
+            self.images += glob.glob(os.path.join(images_dir, ext))
+        self.images.sort()
+        self.index = 0
+
+        self.front_label = self.img_a
+        self.back_label = self.img_b
+        self.front_fx = self.fx_a
+        self.back_fx = self.fx_b
+
+        self.anim_in = QPropertyAnimation(self.back_fx, b"opacity", self)
+        self.anim_out = QPropertyAnimation(self.front_fx, b"opacity", self)
+        for a in (self.anim_in, self.anim_out):
+            a.setDuration(self.FADE_MS)
+            a.setEasingCurve(QEasingCurve.Type.InOutQuad)
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.next_frame)
+        self.timer.start(self.SLIDE_MS)
+
+        self.music_timer = QTimer(self)
+        self.music_timer.timeout.connect(self.update_now_playing)
+        self.music_timer.start(self.MUSIC_POLL_MS)
+
+        self._set_label_pix(self.front_label, self._get_current_pixmap_or_none())
+        self.front_fx.setOpacity(1.0)
+        self.back_fx.setOpacity(0.0)
+        self.update_now_playing()
+
+    def _scaled(self, pix: QPixmap) -> QPixmap:
+        target_h = int(self.height() * self.IMAGE_HEIGHT_RATIO)
+        return pix.scaledToHeight(target_h, Qt.TransformationMode.SmoothTransformation)
+
+    def _get_current_pixmap_or_none(self):
+        if not self.images:
+            return None
+        path = self.images[self.index]
+        self.index = (self.index + 1) % len(self.images)
+        pix = QPixmap(path)
+        return None if pix.isNull() else pix
+
+    def _set_label_pix(self, label: QLabel, pix: QPixmap | None):
+        if pix is None:
+            label.setPixmap(QPixmap())
+            label.setText("🌌")
+            return
+        label.setText("")
+        scaled = self._scaled(pix)
+        rounded = rounded_pixmap(scaled, 30)
+        label.setPixmap(rounded)
+
+    def next_frame(self):
+        pix = self._get_current_pixmap_or_none()
+        self._set_label_pix(self.back_label, pix)
+
+        self.back_fx.setOpacity(0.0)
+        self.front_fx.setOpacity(1.0)
+
+        self.anim_in.stop()
+        self.anim_out.stop()
+
+        self.anim_in = QPropertyAnimation(self.back_fx, b"opacity", self)
+        self.anim_out = QPropertyAnimation(self.front_fx, b"opacity", self)
+        for a in (self.anim_in, self.anim_out):
+            a.setDuration(self.FADE_MS)
+            a.setEasingCurve(QEasingCurve.Type.InOutQuad)
+
+        self.anim_in.setStartValue(0.0)
+        self.anim_in.setEndValue(1.0)
+        self.anim_out.setStartValue(1.0)
+        self.anim_out.setEndValue(0.0)
+
+        self.anim_in.start()
+        self.anim_out.start()
+
+        self.front_label, self.back_label = self.back_label, self.front_label
+        self.front_fx, self.back_fx = self.back_fx, self.front_fx
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        pix = self.front_label.pixmap()
+        if pix and not pix.isNull():
+            self.front_label.setPixmap(pix.scaledToHeight(
+                int(self.height() * self.IMAGE_HEIGHT_RATIO),
+                Qt.TransformationMode.SmoothTransformation
+            ))
+
+    def update_now_playing(self):
+        raw = get_playing()
+        if raw == None:
+            self.music_label.setText(lpak.get("Nothing playing", language))
+            return
+
+        parts = raw.split("|||")
+        if len(parts) < 5:
+            self.music_label.setText(lpak.get("Nothing playing", language))
+            return
+
+        status, artist, title, album, player = [p.strip() for p in parts]
+        if not title:
+            self.music_label.setText(lpak.get("Nothing playing", language))
+            return
+
+        artist = artist or "Unknown artist"
+        album_part = f" ({album})" if album else ""
+        #self.music_label.setText(f"{status} • {artist} - {title}{album_part}  [{player}]")
+        self.music_label.setText(f"{lpak.get(status.capitalize(), language)} • {artist} - {title}{album_part}")
+
+
+#End screen saver
 
 class CalendarWorker(QThread):
     finished = pyqtSignal(object) 
@@ -267,6 +616,8 @@ class CoverWorker(QThread):
 
     def __init__(self, artist, album, title):
         super().__init__()
+        if album == "":
+            return
         self.artist = artist
         self.album = album
         self.title = title
@@ -278,7 +629,7 @@ class CoverWorker(QThread):
             
             if result['release-list']:
                 release_id = result['release-list'][0]['id']
-                url = f"https://coverartarchive.org/release/{release_id}/front-250"
+                url = f"https://coverartarchive.org/release/{release_id}/front"
                 response = requests.get(url, timeout=5)
                 
                 if response.status_code == 200:
@@ -291,14 +642,17 @@ class CoverWorker(QThread):
             self.finished.emit(None)
 
 class VoiceWorker(QThread):
+    global idle
     finished = pyqtSignal(str)
+    wake = pyqtSignal()
     def run(self):
-        try:
+        self.wake.emit()
+        try:            
             prompt = voice_input(turn_down_volume=True)
-            self.finished.emit(prompt if prompt else "")
+            self.finished.emit(prompt if prompt else "")            
         except:
+            screensaver.hide()
             status_label.setText("Error, microphone not found!!")
-
 
 class AIWorker(QThread):
     finished = pyqtSignal(str)
@@ -377,10 +731,14 @@ def verify_actions(response):
 
 def ask_ai():
     global voice_worker
+
+    idle.reset()
+    if screensaver.isVisible():
+        screensaver.hide()
+
     if 'voice_worker' in globals() and voice_worker is not None and voice_worker.isRunning():
         print("DEBUG: voice_worker is already running!")
         return
-
 
     tts.stop()
     if current_popup:
@@ -417,6 +775,11 @@ def ask_ai():
             def restart():
                 QTimer.singleShot(1000, wait_keyword)
             
+            try:
+                tts.finished.disconnect()
+            except:
+                pass
+
             tts.finished.connect(restart)
 
         ai_worker.finished.connect(handle_ai_result)
@@ -433,9 +796,14 @@ def manage_keyword_result(trovata):
     if not trovata:
         QTimer.singleShot(1000, wait_keyword)
         return
+
+    idle.reset()
+    if screensaver.isVisible():
+        screensaver.hide()
+
     if keyword_thread:
         keyword_thread.finished.disconnect()
-    
+
     status_label.setStyleSheet("color: green; font-weight: bold;")
     ask_ai()
 
@@ -458,106 +826,110 @@ def wait_keyword():
 def update_time():
     time_now = datetime.datetime.now().strftime("%H:%M \n %d/%m/%Y")
     label_time.setText(time_now)
-    
+
+last_title = ""
+last_album_artist = ""
+current_cover_thread = None
+
 def update_music():
-    global last_title, current_cover_thread
-    global music_container, music_artist, music_title, music_title_label, music_album, music_play_button, music_cover_label
-    global music_next_song_button, music_previus_song_button, music_volume_up_button, music_volume_down_button, music_layout
-    
-    def set_cover_or_emoji(result):
+    global last_title, last_album_artist, current_cover_thread
+    global music_artist, music_title, music_album, music_play_button, music_cover_label
+
+    def set_cover_or_emoji(result=None, loading=False):
+        music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if result:
             pixmap = QPixmap()
             pixmap.loadFromData(result)
             music_cover_label.setPixmap(pixmap)
-            music_cover_label.setText("") 
+            music_cover_label.setText("")
+            music_cover_label.setStyleSheet("border-radius: 10px;") 
         else:
-            music_cover_label.setPixmap(QPixmap()) 
-            music_cover_label.setText("🎵")
+            music_cover_label.setPixmap(QPixmap())
+            music_cover_label.setText("⏳" if loading else "🎵")
             music_cover_label.setStyleSheet("""
-                background-color: #ddd; 
-                border-radius: 10px; 
-                font-size: 70px; 
-                text-align: center;
+                background-color: #ddd;
+                border-radius: 10px;
+                font-size: 70px;
             """)
-            music_cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-    try:
-        if is_mpv_running():
-            music_data_raw = subprocess.check_output(
-                ["playerctl", "-p", "mpv","metadata", "--format", "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}"],
-                timeout=0.2,
-                text=True,
-                stderr=subprocess.DEVNULL
-            )
-        else:
-            music_data_raw = subprocess.check_output(
-                ["playerctl", "metadata", "--format", "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{position}}|||{{status}}|||{{volume}}|||{{duration}}|||{{playerName}}"],
-                timeout=0.2,
-                text=True,
-                stderr=subprocess.DEVNULL
-            )
-        music_data = music_data_raw.strip().split("|||")
-        
-        if len(music_data) >= 5:
-            artist = music_data[0]
-            title = music_data[1]
-            album = music_data[2]
-            music_status = music_data[4]
-        
-            if title != last_title:
-                last_title = title
-                music_artist.setText(f"{lpak.get("Artist", language)}: {artist}")
-                if "stream.view?" in title:
-                    music_title.setText(f"{lpak.get("Loading", language)}...")
-                else:
-                    music_title.setText(f"{lpak.get("Title", language)}: {title}")
-                music_album.setText(f"{lpak.get("Album", language)}: {album}")
-
-                music_cover_label.setPixmap(QPixmap())
-                music_cover_label.setText("⏳")
-                music_cover_label.setStyleSheet("""
-                        background-color: #ddd; 
-                        border-radius: 10px; 
-                        font-size: 70px; 
-                        text-align: center;
-                    """) 
-
-         
-                new_cover_thread = CoverWorker(artist, album, title)
-                active_threads.append(new_cover_thread)
-
-                def cleanup_and_set(result, thread_ref=new_cover_thread):
-                    set_cover_or_emoji(result)
-                    if thread_ref in active_threads:
-                        active_threads.remove(thread_ref)
-                        
-                new_cover_thread.finished.connect(cleanup_and_set)
-                new_cover_thread.start()
-                
-            if music_status == "Playing":
-                music_play_button.setText("⏸️")
-                music_play_button.clicked.connect(lambda: play_song_command(2))
-            else:
-                music_play_button.setText("▶️")
-                music_play_button.clicked.connect(lambda: play_song_command(1))
-                
-    except subprocess.TimeoutExpired:
-        pass
-
-    except subprocess.CalledProcessError:
-        title = lpak.get("Nothing is playing", language)
-        music_title.setText(title)
+    def set_nothing_playing():
+        music_title.setText(lpak.get("Nothing is playing", language))
         music_artist.setText("")
         music_album.setText("")
-        music_cover_label.setPixmap(QPixmap())
-        music_cover_label.setText("🎵")
         last_title = ""
+        last_album_artist = ""
+        set_cover_or_emoji(None)
+    try:         
+        music_data_raw = get_playing()
+
+        if not music_data_raw:
+            #if last_title != "": 
+            set_nothing_playing()
+            return
+
+        parts = music_data_raw.strip().split("|||")
+        if len(parts) < 5:
+            set_nothing_playing()
+            return
+
+        status, artist, title, album, player = parts
+
+        if album == "" or album == None or artist == "" or artist == None:
+            set_nothing_playing()
+
+
+        if title != last_title:
+            last_title = title
+            music_artist.setText(f"{lpak.get('Artist', language)}: {artist}")
+            if not "stream.view?" in title:
+                music_title.setText(f"{lpak.get('Title', language)}: {title}")
+            else:
+                music_title.setText(f"{lpak.get('Loading', language)}...")
+
+            music_album.setText(f"{lpak.get('Album', language)}: {album}")
+
+        current_album_artist = f"{artist}|||{album}"
+        if current_album_artist != last_album_artist:
+            last_album_artist = current_album_artist
+            if current_cover_thread:
+                try:
+                    current_cover_thread.finished.disconnect()
+                except:
+                    pass
+
+            set_cover_or_emoji(None, loading=True)
+
+            current_cover_thread = CoverWorker(artist, album, title)
+            
+            def on_finished(result, thread_ref=current_cover_thread):
+                if thread_ref == current_cover_thread:
+                    set_cover_or_emoji(result)
+                if thread_ref in active_threads:
+                    active_threads.remove(thread_ref)
+
+            current_cover_thread.finished.connect(on_finished)
+            active_threads.append(current_cover_thread)
+            current_cover_thread.start()
+
+        if status.lower() == "playing":
+            music_play_button.setText("⏸️")
+        else:
+            music_play_button.setText("▶️")
+      
+    except Exception:
+        music_title.setText(lpak.get("Nothing is playing", language))
+        music_artist.setText("")
+        music_album.setText("")
+        last_title = ""
+        last_album_artist = ""
+        set_cover_or_emoji(None)
+        pass
 
 def update_gui():
     update_time()
     if setting_status(music_widget_status):
         update_music()
-    root.repaint()
+    #root.repaint()
 
 
 #LONG
@@ -621,6 +993,61 @@ def first_load():
     load_static_data()
     load_calendar()
 
+#Other update
+def update_imagesFrame():
+    global current_image_index
+    images = glob.glob("custom/images/immich/*")
+
+    if not images:
+        image_label.setWordWrap(True)
+        image_label.setText(
+            f"{lpak.get('No images, please log in with Immich and create an album called OpenHUB', language)}. "
+            f"{lpak.get('See the wiki on GitHub for more informations', language)}."
+        )
+        return
+
+    if current_image_index >= len(images):
+        current_image_index = 0
+
+    path = images[current_image_index]
+    current_image_index += 1
+
+    pixmap = QPixmap(path)
+    if pixmap.isNull():
+        return
+
+    scaled = pixmap.scaled(
+        image_label.size(),
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation
+    )
+
+    scaled = rounded_pixmap(scaled, 20)
+
+    opacity = image_label._opacity
+
+    fade_out = QPropertyAnimation(opacity, b"opacity")
+    fade_out.setDuration(200)
+    fade_out.setStartValue(1.0)
+    fade_out.setEndValue(0.0)
+
+    def swap_image():
+        image_label.setPixmap(scaled)
+
+        fade_in = QPropertyAnimation(opacity, b"opacity")
+        fade_in.setDuration(400)
+        fade_in.setStartValue(0.0)
+        fade_in.setEndValue(1.0)
+        fade_in.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        fade_in.start()
+        image_label._anim_in = fade_in
+
+    fade_out.finished.connect(swap_image)
+    fade_out.start()
+
+    image_label._anim_out = fade_out
+
 
 mixer = alsaaudio.Mixer()
 
@@ -634,7 +1061,6 @@ def verify_folders():
     for folder in folders:
         if not os.path.exists(folder):
             os.makedirs(folder)
-
 
 def config_initial_volume():
     global mixer
@@ -670,12 +1096,35 @@ if not test_mode_enable():
 #Prepare interface
 root = QMainWindow()
 root.setWindowTitle("OpenHUB")
+screensaver = ScreenSaver()
 
 
 central_widget = QWidget()
 root.setCentralWidget(central_widget)
 main_layout = QVBoxLayout(central_widget)
 
+#Screen saver
+def show_screensaver():
+    if test_mode_enable():
+        screensaver.showMaximized()
+    else:
+        screensaver.showFullScreen()
+    screensaver.raise_()
+    screensaver.activateWindow()
+
+def hide_screensaver():
+    screensaver.hide()
+idle = IdleDetector(
+    timeout_ms=int(screensaver_timeout), 
+    on_idle=show_screensaver,
+    on_resume=hide_screensaver
+)
+def wake_up():
+    idle.reset()
+    if screensaver.isVisible():
+        screensaver.hide()
+activity_filter = ActivityFilter(idle)
+app.installEventFilter(activity_filter)
 
 # up bar
 def show_energy_popup():
@@ -1015,27 +1464,30 @@ label_time.setAlignment(Qt.AlignmentFlag.AlignCenter)
 #music
 music_container, music_artist, music_title, music_title_label, music_album, music_play_button = None, None, None, None, None, None
 music_next_song_button, music_previus_song_button, music_volume_up_button, music_volume_down_button, music_layout, music_cover_label = None, None, None, None, None, None
-def next_song_command():
-    if is_mpv_running():
-        os.system('playerctl -p "mpv" next')
-    else: 
-        os.system("playerctl next")
-def previous_song_command():
-    if is_mpv_running():
-        os.system('playerctl -p "mpv" previous')
-    else: 
-        os.system("playerctl previous")
-def play_song_command(action):
-    if action==1:
-        if is_mpv_running():
-            os.system('playerctl -p "mpv" play')
-        else: 
-            os.system("playerctl play")
-    else:
-        if is_mpv_running():
-            os.system('playerctl -p "mpv" pause')
-        else: 
-            os.system("playerctl pause")
+
+def get_target_player():
+    try:
+        music_data = get_playing()        
+        player_name = music_data.split("|||")[4]
+        return player_name
+    except:
+        return None
+
+def next_song_command(_checked=False):
+    target = get_target_player()
+    if target:
+        subprocess.Popen(["playerctl", "-p", target, "next"])
+
+def previous_song_command(_checked=False):
+    target = get_target_player()
+    if target:
+        subprocess.Popen(["playerctl", "-p", target, "previous"])
+
+def play_song_command(_checked=False):
+    target = get_target_player()
+    if target:
+        subprocess.Popen(["playerctl", "-p", target, "play-pause"])
+
 def turn_up_volume():
     try:
         original_volume = mixer.getvolume()[0]
@@ -1045,6 +1497,7 @@ def turn_up_volume():
             f.write(str(volume).strip())
     except:
         pass
+
 def turn_down_volume():
     try:
         original_volume = mixer.getvolume()[0]
@@ -1075,6 +1528,7 @@ def create_music_widget():
     music_cover_label.setScaledContents(True)
 
     music_play_button = QPushButton(text="▶️")
+    music_play_button.clicked.connect(play_song_command)
     music_next_song_button = QPushButton(text="⏭️")
     music_next_song_button.clicked.connect(next_song_command)
     music_previus_song_button = QPushButton(text="⏮️")
@@ -1117,6 +1571,7 @@ def create_music_widget():
     music_layout.addLayout(buttons_layout, 3, 0, 1, 2)
 
 if setting_status(music_widget_status):
+    music_play_button = None
     create_music_widget()
 
 #calendar
@@ -1179,6 +1634,8 @@ def create_weather_widget():
             emoji = "⛈️"
         elif weather == "Thunderstorm":
             emoji = "⚡"
+        else:
+            emoji = "❓"
         return f"{weather_translation} - {emoji}"
     
     h=time_now = datetime.datetime.now().strftime("%H")   
@@ -1212,8 +1669,34 @@ def create_weather_widget():
 if setting_status(weather_widget_status):
     create_weather_widget()
 
+def create_images_widget():
+    global images_container, images_layout, image_label
 
+    images_container = QWidget()
+    images_container.setStyleSheet(style_container)
 
+    images_layout = QGridLayout()
+
+    image_label = QLabel(f"{lpak.get('Loading', language)}...")
+    image_label.setStyleSheet(style_widget)
+
+    image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    image_label.setMinimumSize(300, 200)
+
+    image_label.setSizePolicy(
+        QSizePolicy.Policy.Expanding,
+        QSizePolicy.Policy.Expanding
+    )
+
+    image_label._opacity = QGraphicsOpacityEffect()
+    image_label._opacity.setOpacity(1.0)
+    image_label.setGraphicsEffect(image_label._opacity)
+
+    images_layout.addWidget(image_label)
+    images_container.setLayout(images_layout)
+
+if setting_status(images_widget_status):
+   create_images_widget()
 
 #Make Layout
 def control_coordinate():   
@@ -1238,6 +1721,9 @@ if setting_status(calendar_widget_status):
     control_coordinate()
 if setting_status(weather_widget_status):
     data_widget.addWidget(weather_container, line, column)
+    control_coordinate()
+if setting_status(images_widget_status):
+    data_widget.addWidget(images_container, line, column)
     control_coordinate()
 
 
@@ -1308,20 +1794,30 @@ def load_external_widgets(griglia_layout, starting_line=1, starting_column=1):
             traceback.print_exc()
 
     print("8. Widget loaded!")
+
 load_external_widgets(data_widget, starting_line=line, starting_column=column)
 
 
+data_widget.setColumnStretch(0, 1)
+data_widget.setColumnStretch(1, 1)
 
 
 main_layout.addLayout(data_widget)
+
 # TIMER update
 rapid_update_timer = QTimer()
 rapid_update_timer.timeout.connect(update_gui)
-rapid_update_timer.start(500)
+rapid_update_timer.start(1500)
 
 long_update_timer = QTimer()
 long_update_timer.timeout.connect(long_update_widget)
 long_update_timer.start(300000)
+
+#Photos timer
+if setting_status(images_widget_status):
+    images_timer = QTimer()
+    images_timer.timeout.connect(update_imagesFrame)
+    images_timer.start(7000)
 
 first_load()
 wait_keyword()

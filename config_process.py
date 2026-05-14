@@ -49,6 +49,16 @@ CONFIG_SCHEMA = [
         "name": "Subsonic",
         "keys": ["subsonic_url", "subsonic_username", "subsonic_password", "ListenBrainz_key"],
         "optional": True
+    },
+    {
+        "name": "Immich",
+        "keys": ["Url", "Email", "Password"],
+        "optional": True
+    },
+    {
+        "name": "MJPG Camera",
+        "keys": ["User", "Password"],
+        "optional": True
     }
 ]
 
