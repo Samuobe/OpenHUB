@@ -136,7 +136,10 @@ if command == "start":
         except FileNotFoundError:
             print("Warning: mpris-proxy not found. Bluetooth media info will not work.")
 
-        files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", "back_process/music_scrobbling.py", "back_process/search_cd_data_daemon.py", "back_process/immich_photos.py"]
+        files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", 
+            "back_process/music_scrobbling.py", "back_process/search_cd_data_daemon.py", 
+            "back_process/immich_photos.py", "back_process/MJPG_Camera.py"
+        ]
 
         for file in files:
             file_path = os.path.join(script_dir, file)

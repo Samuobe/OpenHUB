@@ -169,51 +169,72 @@ def is_fake_mpv_running():
         return False
 
 def get_playing(player: str = None):
-    def query(p, format_string="{{status}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}"):
+
+    def query(
+        p,
+        format_string="{{status}}|||{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}"
+    ):
         try:
             return subprocess.check_output(
                 ["playerctl", "metadata", "-p", p, "--format", format_string],
-                stderr=subprocess.DEVNULL, text=True, timeout=0.3
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=0.3
             ).strip()
         except:
             return None
 
     try:
-        players = subprocess.check_output(["playerctl", "-l"], text=True, stderr=subprocess.DEVNULL).splitlines()
-        
-        # --- CASO CRITICO: CD IN CORSO (Fake MPV attivo) ---
-        fake_mpv = next((p for p in players if p.startswith("mpv.instance-")), None)
-        
+        players = subprocess.check_output(
+            ["playerctl", "-l"],
+            text=True,
+            stderr=subprocess.DEVNULL
+        ).splitlines()
+
+        if player:
+            return query(player)
+
+        fake_mpv = next(
+            (p for p in players if p.startswith("mpv.instance-")),
+            None
+        )
+
         if fake_mpv:
-            # 1. Prendiamo i METADATI dal fake MPV (Titolo, Artista, Album)
-            meta_data = query(fake_mpv, "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}")
-            # 2. Prendiamo lo STATO reale da VLC (Playing/Paused)
+            meta_data = query(
+                fake_mpv,
+                "{{xesam:artist}}|||{{xesam:title}}|||{{xesam:album}}|||{{playerName}}"
+            )
+
             real_status = "paused"
+
             try:
                 real_status = subprocess.check_output(
-                    ["playerctl", "-p", "vlc", "status"], 
-                    stderr=subprocess.DEVNULL, text=True
+                    ["playerctl", "-p", "vlc", "status"],
+                    stderr=subprocess.DEVNULL,
+                    text=True
                 ).strip().lower()
             except:
                 pass
-            
+
             if meta_data:
-                # Ricostruiamo la stringa mettendo lo stato di VLC all'inizio
                 return f"{real_status}|||{meta_data}"
 
-        # --- CASO NORMALE: Altri player ---
-        for p in ["mpv", "vlc"]: # Prova i player standard
+        t_list = [p for p in players if p not in ["vlc", "mpv"]]
+
+        if t_list:
+            res = query(t_list[0])
+            if res:
+                return res
+
+        for p in ["mpv", "vlc"]:
             if p in players:
                 res = query(p)
-                if res: return res
+                if res:
+                    return res
 
-        # Fallback sull'ultimo player rilevato
-        for p in players:
-            res = query(p)
-            if res: return res
+    except Exception as e:
+        print(e)
 
-    except Exception:
-        pass
     return None
 
 def show_big_advice(testo):
@@ -831,24 +852,31 @@ def update_music():
                 font-size: 70px;
             """)
 
+    def set_nothing_playing():
+        music_title.setText(lpak.get("Nothing is playing", language))
+        music_artist.setText("")
+        music_album.setText("")
+        last_title = ""
+        last_album_artist = ""
+        set_cover_or_emoji(None)
     try:         
         music_data_raw = get_playing()
 
         if not music_data_raw:
-            if last_title != "": 
-                music_title.setText(lpak.get("Nothing is playing", language))
-                music_artist.setText("")
-                music_album.setText("")
-                last_title = ""
-                last_album_artist = ""
-                set_cover_or_emoji(None)
+            #if last_title != "": 
+            set_nothing_playing()
             return
 
         parts = music_data_raw.strip().split("|||")
         if len(parts) < 5:
+            set_nothing_playing()
             return
 
         status, artist, title, album, player = parts
+
+        if album == "" or album == None or artist == "" or artist == None:
+            set_nothing_playing()
+
 
         if title != last_title:
             last_title = title
@@ -1439,30 +1467,15 @@ music_next_song_button, music_previus_song_button, music_volume_up_button, music
 
 def get_target_player():
     try:
-        players = subprocess.check_output(["playerctl", "-l"], text=True).splitlines()
-        
-        # PRIORITÀ 1: Se esiste un'istanza fake di MPV, 
-        # significa che stiamo leggendo un CD. Il comando VA a VLC.
-        for p in players:
-            if p.startswith("mpv.instance-"):
-                return "vlc"
-
-        # PRIORITÀ 2: Se VLC è aperto (anche senza CD), usiamo quello
-        if "vlc" in players:
-            return "vlc"
-
-        # PRIORITÀ 3: Altrimenti usiamo il player attivo rilevato dall'interfaccia
-        if active_player_name:
-            return active_player_name
-
-        return None
+        music_data = get_playing()        
+        player_name = music_data.split("|||")[4]
+        return player_name
     except:
         return None
 
 def next_song_command(_checked=False):
     target = get_target_player()
     if target:
-        # Usiamo Popen per non bloccare la UI
         subprocess.Popen(["playerctl", "-p", target, "next"])
 
 def previous_song_command(_checked=False):
@@ -1681,7 +1694,6 @@ def create_images_widget():
 
     images_layout.addWidget(image_label)
     images_container.setLayout(images_layout)
-
 
 if setting_status(images_widget_status):
    create_images_widget()
