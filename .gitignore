@@ -19,3 +19,5 @@ instalation_type.info
 config.conf
 *TEST*
 custom/images/immich/*
+cert.pem
+key.pem
