@@ -10,6 +10,7 @@ import json
 import functions.notify as notify
 import config_process
 import shutil
+from PyQt6.QtGui import QFont
 
 
 settings_window = None 
@@ -81,7 +82,6 @@ def update_special_files(INSTALL_DIR=None):
 
     return updated
 
-
 def sync_venv():
         import os
         import subprocess
@@ -105,7 +105,6 @@ def sync_venv():
             "-r",
             requirements
         ])
-
 
 class UpdateThread(QThread):
     progress = pyqtSignal(int)
@@ -302,6 +301,15 @@ def open_settings_page():
     settings_window.setCentralWidget(central_widget)
     main_layout = QVBoxLayout(central_widget)
 
+    ####STYLE
+    font_title = QFont("Imapct", 30)
+    font_title.setBold(True)
+    font_section_title = QFont("Impact", 20)
+    font_section_title.setItalic(True)
+    font_subtitle = QFont("Impact", 13)
+    font_subtitle.setItalic(True)
+
+
     # Up bar
     up_bar_layout = QHBoxLayout()
     status_label = QLabel(f"{lpak.get('Settings', language)}")
@@ -329,8 +337,10 @@ def open_settings_page():
     # central content
     label_title = QLabel(f"{lpak.get('Settings', language)}")
     label_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    label_title.setFont(font_title)
 
     label_user_data=QLabel(f"{lpak.get('Interface options', language)}")
+    label_user_data.setFont(font_section_title)
     #languages
     label_language=QLabel(lpak.get("Language", language))
     menu_select_language = QComboBox()
@@ -339,6 +349,7 @@ def open_settings_page():
 
     #Widgets
     label_widget_title = QLabel(lpak.get("Default widgets", language))
+    label_widget_title.setFont(font_section_title)
     def change_music_widget_status():   #music
         global music_widget_status, config
         set_edited_status()
@@ -475,7 +486,9 @@ def open_settings_page():
 
 
     label_title_custom_things=QLabel(lpak.get("Custom components", language))
+    label_title_custom_things.setFont(font_section_title)
     label_title_custom_widgets=QLabel(lpak.get("Widgets", language))
+    label_title_custom_widgets.setFont(font_subtitle)
 
     def change_custom_widget_status(path, status, button):
         if button.text() == lpak.get("Disable", language):
