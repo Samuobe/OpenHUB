@@ -11,6 +11,9 @@ import functions.notify as notify
 import config_process
 import shutil
 from PyQt6.QtGui import QFont
+from bs4 import BeautifulSoup as BS
+import requests
+
 
 
 settings_window = None 
@@ -218,6 +221,8 @@ def open_settings_page():
     config.optionxform = str
     config.read(f"{data_path}config.conf")
     language = config.get("User data", "Language")
+    ai_model = config.get("User data", "AI_model")
+    screensaver_timeout = config.get("User data", "Screensaver_timeout")
 
     music_widget_status = config.get("Widgets", "Music")
     calendar_widget_status = config.get("Widgets", "Calendar")
@@ -287,7 +292,40 @@ def open_settings_page():
         except Exception as e:
             print("Error during confronting:", e)
     
-        settings_window.close()        
+        settings_window.close() 
+
+    def get_ai_models():
+        try:
+            risposta = requests.get("https://ollama.com/search")
+            soup = BS(risposta.text, 'html.parser')
+            elem = soup.find_all("h2")
+            ai_list = []
+            for ai in elem:
+                ai = str(ai).split("<span>")[1]
+                ai = ai.split("</span>")[0]
+                ai_list.append(ai)
+            return ai_list
+        except:
+            return ["ERROR"]
+
+    def change_aiModel():
+        global config
+        set_edited_status()
+        new_model = menu_select_ai.currentText()
+        if ai_mode.currentIndex() == 1:
+            new_model = new_model+":cloud"
+        config.set("User data", "AI_model", new_model)
+        write_settings()
+        notify.system_notification(f"{lpak.get('AI model changed', language)}: {ai_model}", f"{lpak.get('AI model updated', language)}.")
+
+
+    def change_language():
+        global config
+        set_edited_status()
+        new_language = menu_select_language.currentText()
+        config.set("User data", "Language", new_language)
+        write_settings()
+        notify.system_notification(f"{lpak.get('New language', new_language)}: {new_language}", f"{lpak.get('Language updated', new_language)}. {lpak.get('Language updated', new_language)}!")
 
     if settings_window is not None:
         settings_window.show()  
@@ -339,13 +377,37 @@ def open_settings_page():
     label_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
     label_title.setFont(font_title)
 
+    #interface options
     label_user_data=QLabel(f"{lpak.get('Interface options', language)}")
     label_user_data.setFont(font_section_title)
-    #languages
+     #languages
     label_language=QLabel(lpak.get("Language", language))
     menu_select_language = QComboBox()
     menu_select_language.addItems(avaible_languages)
     menu_select_language.setCurrentText(language)
+    menu_select_language.currentTextChanged.connect(change_language)
+     #ai model
+    label_aiModel = QLabel(lpak.get("AI models", language))
+    models = get_ai_models()
+    menu_select_ai = QComboBox()
+    if models[0] == "ERROR":
+        menu_select_ai.addItem(lpak.get("Error searching AI models", language)) 
+    else:
+        menu_select_ai.addItems(models)
+        menu_select_ai.setCurrentText(ai_model)
+        menu_select_ai.currentTextChanged.connect(change_aiModel)
+
+    ai_mode_label = QLabel(lpak.get("AI execution mode", language))
+    ai_mode = QComboBox()
+    ai_mode.addItems(
+        [lpak.get("Run locally", language), lpak.get("Run in cloud", language)]
+    )
+    if "cloud" in ai_model:
+        ai_mode.setCurrentIndex(1)
+    else:
+        ai_mode.setCurrentIndex(0)
+    ai_mode.currentTextChanged.connect(change_aiModel)
+
 
     #Widgets
     label_widget_title = QLabel(lpak.get("Default widgets", language))
@@ -443,18 +505,6 @@ def open_settings_page():
     #label
     setting_status_label = QLabel()
 
-    #Buttons
-    def change_language():
-        global config
-        set_edited_status()
-        new_language = menu_select_language.currentText()
-        config.set("User data", "Language", new_language)
-        write_settings()
-        notify.system_notification(f"{lpak.get('New language', new_language)}: {new_language}", f"{lpak.get('Language updated', new_language)}. {lpak.get('Language updated', new_language)}!")
-
-    button_change_language = QPushButton(lpak.get("Apply language", language))
-    button_change_language.clicked.connect(change_language)
-
     #reconfig button
     def start_reconfig():
         config_process.restart_configuration(use_gui=True)
@@ -469,20 +519,24 @@ def open_settings_page():
     data_widget.addWidget(label_user_data, 1, 0, 1, 2)
     data_widget.addWidget(label_language, 2, 0, 1, 1)
     data_widget.addWidget(menu_select_language, 2, 1, 1, 1)
-    data_widget.addWidget(create_line(), 3, 0, 1, 2)
+    data_widget.addWidget(label_aiModel,3 , 0, 1,1)
+    data_widget.addWidget(menu_select_ai, 3, 1, 1, 1 )
+    data_widget.addWidget(ai_mode_label,4, 0, 1,1)
+    data_widget.addWidget(ai_mode,4,1,1,1)
+    data_widget.addWidget(create_line(), 5, 0, 1, 2)
 
-    data_widget.addWidget(label_widget_title, 4, 0, 1, 2)
-    data_widget.addWidget(label_music_widget, 5, 0, 1, 1)
-    data_widget.addWidget(button_setting_music, 5, 1, 1, 1)    
-    data_widget.addWidget(label_calendar_widget, 6, 0, 1, 1)
-    data_widget.addWidget(button_setting_calendar, 6, 1, 1, 1)
-    data_widget.addWidget(label_weather_widget, 7, 0, 1, 1)
-    data_widget.addWidget(button_setting_weather, 7, 1, 1, 1)
-    data_widget.addWidget(label_images_widget, 8, 0, 1, 1)
-    data_widget.addWidget(button_setting_images, 8, 1, 1, 1)
+    data_widget.addWidget(label_widget_title, 6, 0, 1, 2)
+    data_widget.addWidget(label_music_widget, 7, 0, 1, 1)
+    data_widget.addWidget(button_setting_music, 7, 1, 1, 1)    
+    data_widget.addWidget(label_calendar_widget, 8, 0, 1, 1)
+    data_widget.addWidget(button_setting_calendar, 8, 1, 1, 1)
+    data_widget.addWidget(label_weather_widget, 9, 0, 1, 1)
+    data_widget.addWidget(button_setting_weather, 9, 1, 1, 1)
+    data_widget.addWidget(label_images_widget, 10, 0, 1, 1)
+    data_widget.addWidget(button_setting_images, 10, 1, 1, 1)
     
-    data_widget.addWidget(create_line(), 9, 0, 1, 2)
-    data_widget.addWidget(button_change_language, 10, 0, 1, 2)
+    data_widget.addWidget(create_line(), 11, 0, 1, 2)
+    
 
 
     label_title_custom_things=QLabel(lpak.get("Custom components", language))
@@ -544,7 +598,7 @@ def open_settings_page():
         data_widget.addWidget(plugin_button, r, 3, 1, 1)
         r = r+1
 
-    bottom_row = max(11, r)
+    bottom_row = max(12, r)
 
     data_widget.addWidget(create_line(), bottom_row, 0, 1, 4)
     data_widget.addWidget(button_edit_credential, bottom_row + 1, 0, 1, 4)
