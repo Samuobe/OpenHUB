@@ -94,10 +94,6 @@ app.processEvents()
 #####################
 
 
-
-
-
-
 #LIBRERIE
 import os
 import re
@@ -874,7 +870,7 @@ def update_music():
 
         status, artist, title, album, player = parts
 
-        if album == "" or album == None or artist == "" or artist == None:
+        if album == "" or album == None:
             set_nothing_playing()
 
 

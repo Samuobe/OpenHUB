@@ -11,6 +11,7 @@ from faster_whisper import WhisperModel
 from openwakeword.model import Model
 import configparser
 import functions.get_language_code as get_language_code
+import re
 
 data_path=""
 
@@ -65,6 +66,34 @@ else:
         }
     ]
 
+def try_parse_raw_tool_json(text_content):
+    if not text_content:
+        return None
+    try:
+        cleaned = re.sub(r"```json\s*", "", text_content)
+        cleaned = re.sub(r"```\s*", "", cleaned).strip()
+
+        data = json.loads(cleaned)
+
+        if isinstance(data, dict):
+            if "name" in data and ("arguments" in data or "parameters" in data):
+                fn_name = data["name"]
+                args = data.get("arguments") or data.get("parameters") or {}
+                return fn_name, args
+
+            if "function" in data:
+                fn_name = (
+                    data["function"]
+                    if isinstance(data["function"], str)
+                    else data["function"].get("name")
+                )
+                args = data.get("args") or data.get("arguments") or {}
+                return fn_name, args
+    except Exception:
+        pass
+
+    return None
+
 def save_messages():
     with open(f"{data_path}conversation.json", "w") as f:
         json.dump(messages, f, indent=2)
@@ -74,57 +103,95 @@ def Lattuga(prompt):
     now = datetime.datetime.now()
     now_str = now.strftime("%d/%m/%Y at %H:%M:%S")
 
-    messages.append({
-        'role': 'user',
-        'content': f"{prompt} (Current time: {now_str})"
-    })
+    messages.append(
+        {"role": "user", "content": f"{prompt} (Current time: {now_str})"}
+    )
 
     def clean_message(msg):
-        if type(msg) is dict: 
+        if type(msg) is dict:
             return dict(msg)
-            
+
         clean_dict = {
-            'role': msg.get('role') if isinstance(msg, dict) else getattr(msg, 'role', ''),
-            'content': msg.get('content') if isinstance(msg, dict) else getattr(msg, 'content', '')
+            "role": msg.get("role")
+            if isinstance(msg, dict)
+            else getattr(msg, "role", ""),
+            "content": msg.get("content")
+            if isinstance(msg, dict)
+            else getattr(msg, "content", ""),
         }
 
-        t_calls = msg.get('tool_calls') if isinstance(msg, dict) else getattr(msg, 'tool_calls', None)
+        t_calls = (
+            msg.get("tool_calls")
+            if isinstance(msg, dict)
+            else getattr(msg, "tool_calls", None)
+        )
         if t_calls:
-            clean_dict['tool_calls'] = []
+            clean_dict["tool_calls"] = []
             for tool in t_calls:
                 if isinstance(tool, dict):
-                    clean_dict['tool_calls'].append(tool)
+                    clean_dict["tool_calls"].append(tool)
                 else:
-                    clean_dict['tool_calls'].append({
-                        'function': {
-                            'name': tool.function.name,
-                            'arguments': tool.function.arguments
+                    clean_dict["tool_calls"].append({
+                        "function": {
+                            "name": tool.function.name,
+                            "arguments": tool.function.arguments,
                         }
                     })
         return clean_dict
-    
-    response = ollama.chat(
-        model=ai_model,
-        messages=messages,
-        tools=tools
-    )
-    message = response.get('message', {})
+
+   
+    def safe_ollama_chat():
+        try:
+            return ollama.chat(model=ai_model, messages=messages, tools=tools)
+        except ollama.ResponseError as e:
+
+            if e.status_code == 402 or "subscription" in str(e).lower():
+                print(
+                    "⚠️ ERRORE 402: Il modello richiede un abbonamento Ollama!"
+                )
+                return {
+                    "message": {
+                        "role": "assistant",
+                        "content": "Spiacente, questa modalità AI richiede un abbonamento o crediti aggiuntivi su Ollama.",
+                    }
+                }
+            print(f"⚠️ Errore API Ollama: {e}")
+            raise e
+        except Exception as e:
+            print(f"⚠️ Errore di connessione con Ollama: {e}")
+            raise e
+
+
+    response = safe_ollama_chat()
+    message = response.get("message", {})
 
     messages.append(clean_message(message))
 
     while True:
-        tool_calls_handled = False  
-        stop_requested = False 
+        tool_calls_handled = False
+        stop_requested = False
 
-        current_tool_calls = message.get('tool_calls') if isinstance(message, dict) else getattr(message, 'tool_calls', None)
-        
+        current_tool_calls = (
+            message.get("tool_calls")
+            if isinstance(message, dict)
+            else getattr(message, "tool_calls", None)
+        )
+
         if current_tool_calls:
             for tool in current_tool_calls:
-                function_name = tool['function']['name'] if isinstance(tool, dict) else tool.function.name
-                
+                function_name = (
+                    tool["function"]["name"]
+                    if isinstance(tool, dict)
+                    else tool.function.name
+                )
+
                 if function_name in available_functions:
                     function_to_call = available_functions[function_name]
-                    arguments = tool['function']['arguments'] if isinstance(tool, dict) else tool.function.arguments
+                    arguments = (
+                        tool["function"]["arguments"]
+                        if isinstance(tool, dict)
+                        else tool.function.arguments
+                    )
 
                     result = function_to_call(**arguments)
 
@@ -132,37 +199,53 @@ def Lattuga(prompt):
                         stop_requested = True
 
                     messages.append({
-                        'role': 'tool',
-                        'name': function_name,
-                        'content': json.dumps(result)
+                        "role": "tool",
+                        "name": function_name,
+                        "content": json.dumps(result),
                     })
                     tool_calls_handled = True
 
         if stop_requested:
             print("No reply required")
-            messages.append({'role': 'assistant', 'content': '[Interrotto]'}) 
+            messages.append({"role": "assistant", "content": "[Interrotto]"})
             save_messages()
-            return ""    
+            return ""
 
         if not tool_calls_handled:
             break
 
-        response = ollama.chat(
-            model=ai_model,
-            messages=messages,
-            tools=tools
-        )
-        message = response.get('message', {})
-        
+       
+        response = safe_ollama_chat()
+        message = response.get("message", {})
+
         messages.append(clean_message(message))
 
-    final_content = message.get('content', '') if isinstance(message, dict) else getattr(message, 'content', '')
+    final_content = (
+        message.get("content", "")
+        if isinstance(message, dict)
+        else getattr(message, "content", "")
+    )
+
+    raw_tool = try_parse_raw_tool_json(final_content)
+    if raw_tool:
+        fn_name, fn_args = raw_tool
+        if fn_name in available_functions:
+            print(
+                f"[FALLBACK] Found function: {fn_name}({fn_args})"
+            )
+            fn_to_call = available_functions[fn_name]
+            try:
+                result = fn_to_call(**fn_args)
+                return f"Operation {fn_name} executed: {result}"
+            except Exception as e:
+                print(f"Error esecuting tool: {e}")
+
     print(f"***Response: {final_content}")
 
     if len(messages) > 20:
         messages[:] = [messages[0]] + messages[-19:]
     save_messages()
-    
+
     return final_content
 
 def listen_for_keyword():
