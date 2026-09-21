@@ -1,17 +1,20 @@
+import configparser
 import os
 import subprocess
 import sys
-import configparser
 from sys import argv
 from config_process import run_setup
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_dir)
 
-def test_mode_enable():    
+
+def test_mode_enable():
     return os.path.isfile("test.txt")
 
+
 data_path = ""
+
 
 def ensure_config_defaults(CONFIG_FILE, DEFAULT_CONFIG):
     config = configparser.ConfigParser()
@@ -38,6 +41,7 @@ def ensure_config_defaults(CONFIG_FILE, DEFAULT_CONFIG):
 
     return config, changed
 
+
 def config_has_asterisk(config, DEFAULT_CONFIG):
     for section, values in DEFAULT_CONFIG.items():
         if not config.has_section(section):
@@ -47,6 +51,7 @@ def config_has_asterisk(config, DEFAULT_CONFIG):
                 if config.get(section, key).strip() == "*":
                     return True
     return False
+
 
 def check_configuration():
     base_file = "credential_base.env"
@@ -78,14 +83,14 @@ def check_configuration():
         "User data": {
             "Language": "English",
             "AI_model": "ministral-3:14b-cloud",
-            "Screensaver_timeout": "50000"
+            "Screensaver_timeout": "50000",
         },
         "Widgets": {
             "Music": "Enable",
             "Calendar": "Enable",
             "Weather": "Enable",
-            "ImagesFrame": "Enable"
-        }
+            "ImagesFrame": "Enable",
+        },
     }
 
     config, _ = ensure_config_defaults(CONFIG_FILE, DEFAULT_CONFIG)
@@ -100,8 +105,70 @@ def check_configuration():
 
     return True
 
+def check_and_manage_ssl(cert_file="cert.pem", key_file="key.pem", days=365):
+    cert_path = os.path.join(script_dir, cert_file)
+    key_path = os.path.join(script_dir, key_file)
+
+    def generate_certs():
+        print("Generazione di nuovi certificati SSL autofirmati in corso...")
+        cmd = [
+            "openssl",
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:2048",
+            "-nodes",
+            "-out",
+            cert_path,
+            "-keyout",
+            key_path,
+            "-days",
+            str(days),
+            "-subj",
+            "/CN=localhost/O=OpenHUB",
+        ]
+        try:
+            subprocess.run(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
+            )
+            print("Certificati SSL generati con successo.")
+        except subprocess.CalledProcessError:
+            print("ERRORE: Impossibile generare i certificati SSL con OpenSSL.")
+
+    if not os.path.exists(cert_path) or not os.path.exists(key_path):
+        print("Certificati SSL mancanti.")
+        generate_certs()
+        return
+
+    try:
+        result = subprocess.run(
+            [
+                "openssl",
+                "x509",
+                "-checkend",
+                "604800",
+                "-noout",
+                "-in",
+                cert_path,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        if result.returncode != 0:
+            print("I certificati SSL sono scaduti o in scadenza (meno di 7 giorni).")
+            generate_certs()
+        else:
+            print("Certificati SSL presenti e validi.")
+    except Exception as e:
+        print(f"Errore durante la verifica del certificato: {e}")
+        generate_certs()
+
 try:
-    command = argv[1]    
+    command = argv[1]
 except IndexError:
     command = None
 
@@ -111,7 +178,7 @@ if command == "start":
         specific = argv[2]
     except IndexError:
         specific = None
-        
+
     if specific == "station":
         print("###################")
         print("ATTENCTION!!! DON'T USE THIS IF YOU DON'T KNOW WHAT YOU ARE DOING!!!")
@@ -127,18 +194,32 @@ if command == "start":
                 print("Configuration not completed, exiting.")
                 sys.exit(0)
 
+        check_and_manage_ssl()
+
         processi = []
 
         try:
-            p_mpris = subprocess.Popen(["mpris-proxy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            p_mpris = subprocess.Popen(
+                ["mpris-proxy"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             processi.append(p_mpris)
             print(f"Started mpris-proxy with PID: {p_mpris.pid}")
         except FileNotFoundError:
-            print("Warning: mpris-proxy not found. Bluetooth media info will not work.")
+            print(
+                "Warning: mpris-proxy not found. Bluetooth media info will not work."
+            )
 
-        files = ["app.py", "back_process/music.py", "back_process/clock.py", "back_process/api.py", 
-            "back_process/music_scrobbling.py", "back_process/search_cd_data_daemon.py", 
-            "back_process/immich_photos.py", "back_process/MJPG_Camera.py"
+        files = [
+            "app.py",
+            "back_process/music.py",
+            "back_process/clock.py",
+            "back_process/api.py",
+            "back_process/music_scrobbling.py",
+            "back_process/search_cd_data_daemon.py",
+            "back_process/immich_photos.py",
+            "back_process/MJPG_Camera.py",
         ]
 
         for file in files:
@@ -153,19 +234,31 @@ if command == "start":
         except KeyboardInterrupt:
             print("\nExiting...")
             for p in processi:
-                p.terminate() 
-                
+                p.terminate()
+
     elif specific == "core":
+        check_and_manage_ssl()
+
         processi = []
 
         try:
-            p_mpris = subprocess.Popen(["mpris-proxy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            p_mpris = subprocess.Popen(
+                ["mpris-proxy"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             processi.append(p_mpris)
             print(f"Started mpris-proxy with PID: {p_mpris.pid}")
         except FileNotFoundError:
-            print("Warning: mpris-proxy not found. Bluetooth media info will not work.")
+            print(
+                "Warning: mpris-proxy not found. Bluetooth media info will not work."
+            )
 
-        files = ["back_process/music.py", "back_process/clock.py", "back_process/api.py"]
+        files = [
+            "back_process/music.py",
+            "back_process/clock.py",
+            "back_process/api.py",
+        ]
 
         for file in files:
             file_path = os.path.join(script_dir, file)
@@ -179,22 +272,22 @@ if command == "start":
         except KeyboardInterrupt:
             print("\nExiting...")
             for p in processi:
-                p.terminate() 
-                
+                p.terminate()
+
     elif specific == "help":
         print("open-hub start _____")
         print("                |-> station\tStart the full independent station with GUI")
         print("                |-> core\tStart all the system except GUI function")
         print("                |-> help\tShow this guide ")
     else:
-        print('Error, invalid start arg, use "main.py start help" to see a guide')
+        print("Error, invalid start arg, use 'main.py start help' to see a guide")
 
 elif command == "daemon":
     try:
         specific = argv[2]
     except IndexError:
         specific = None
-    
+
     if specific == "enable":
         os.system("systemctl --user enable openhub.service")
     elif specific == "disable":
@@ -218,7 +311,7 @@ elif command == "daemon":
         print("                   |-> restart \tRestart OpenHUB")
         print("                   |-> help\tShow this guide ")
     else:
-        print('Error, invalid autostart arg, use "open-hub autostart help" to see a guide')
+        print("Error, invalid autostart arg, use 'open-hub autostart help' to see a guide")
 
 elif command == "recovery":
     try:
@@ -226,13 +319,17 @@ elif command == "recovery":
     except IndexError:
         specific = None
     if specific == "update":
-        os.system("cd ~ && curl -LO https://raw.githubusercontent.com/Samuobe/OpenHUB/main/install.sh && bash install.sh")
+        os.system(
+            "cd ~ && curl -LO https://raw.githubusercontent.com/Samuobe/OpenHUB/main/install.sh && bash install.sh"
+        )
     elif specific == "help":
         print("open-hub recovery _____")
         print("                     |-> update \tForce update if GUI doesn' start")
         print("                     |-> help \tShow this guide")
     else:
-        print('Error, invalid "recovery" arg, use "open-hub recovery help" for more informations')
+        print(
+            "Error, invalid 'recovery' arg, use 'open-hub recovery help' for more informations"
+        )
 
 elif command == "help":
     print("OpenHUB guide. By: Samuele Oberti")
@@ -251,8 +348,8 @@ elif command == "help":
     print("          |-> help\tShow this guide ")
     print("")
     print("PLEASE NOTE!!!!! Don't use *start* to use this program normally, use *daemon*")
-    print('Every command have a specific guide, try for example "open-hub recovery help"')
+    print("Every command have a specific guide, try for example 'open-hub recovery help'")
     print("")
 
 else:
-    print('Error, invalid arg, use "open-hub help" to see a guide')
+    print("Error, invalid arg, use 'open-hub help' to see a guide")
